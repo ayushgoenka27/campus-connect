@@ -5,6 +5,7 @@ import AppLayout from "./layout/AppLayout";
 import Dashboard from "./pages/Dashboard";
 import Discover from "./pages/Discover";
 import Connections from "./pages/Connections";
+import Community from "./pages/Community";
 import Profile from "./pages/Profile";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -34,15 +35,7 @@ export default function App() {
                   />
                 }
               />
-              <Route
-                path="/community"
-                element={
-                  <ComingSoon
-                    title="Community Feed"
-                    description="Share updates, join discussions, and interact with posts."
-                  />
-                }
-              />
+              <Route path="/community" element={<Community />} />
               <Route
                 path="/events"
                 element={
