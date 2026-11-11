@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.dependencies import get_current_user_id
 from app.db.dependencies import get_db
@@ -167,130 +167,129 @@ def get_accepted_connections(
     db: Session = Depends(get_db),
 ):
     connections = db.scalars(
-        select(Connection).where(
+        select(Connection)
+        .options(
+            joinedload(Connection.sender),
+            joinedload(Connection.receiver),
+        )
+        .where(
             Connection.status == "accepted",
             or_(
                 Connection.sender_id == current_user_id,
                 Connection.receiver_id == current_user_id,
             ),
         )
-    ).all()
+        .order_by(Connection.updated_at.desc())
+    ).unique().all()
 
     result = []
 
     for connection in connections:
-        other_user_id = (
-            connection.receiver_id
+        other_user = (
+            connection.receiver
             if connection.sender_id == current_user_id
-            else connection.sender_id
+            else connection.sender
         )
 
-        user = db.scalar(
-            select(User).where(User.id == other_user_id)
-        )
-
-        if user:
+        if other_user:
             result.append(
                 {
                     "connection_id": connection.id,
                     "user": {
-                        "id": user.id,
-                        "full_name": user.full_name,
-                        "username": user.username,
-                        "email": user.email,
-                        "role": user.role,
-                        "bio": user.bio,
-                        "profile_image": user.profile_image,
-                        "course": user.course,
-                        "branch": user.branch,
-                        "year": user.year,
+                        "id": other_user.id,
+                        "full_name": other_user.full_name,
+                        "username": other_user.username,
+                        "email": other_user.email,
+                        "role": other_user.role,
+                        "bio": other_user.bio,
+                        "profile_image": other_user.profile_image,
+                        "course": other_user.course,
+                        "branch": other_user.branch,
+                        "year": other_user.year,
                     },
+                    "status": connection.status,
+                    "created_at": connection.created_at,
+                    "updated_at": connection.updated_at,
                 }
             )
 
     return result
+
+
 @router.get("/requests")
 def get_connection_requests(
     current_user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
     connections = db.scalars(
-        select(Connection).where(
+        select(Connection)
+        .options(joinedload(Connection.sender))
+        .where(
             Connection.receiver_id == current_user_id,
             Connection.status == "pending",
-        ).order_by(Connection.created_at.desc())
-    ).all()
-
-    result = []
-
-    for connection in connections:
-        sender = db.scalar(
-            select(User).where(User.id == connection.sender_id)
         )
+        .order_by(Connection.created_at.desc())
+    ).unique().all()
 
-        if sender:
-            result.append(
-                {
-                    "connection_id": connection.id,
-                    "user": {
-                        "id": sender.id,
-                        "full_name": sender.full_name,
-                        "username": sender.username,
-                        "email": sender.email,
-                        "role": sender.role,
-                        "bio": sender.bio,
-                        "profile_image": sender.profile_image,
-                        "course": sender.course,
-                        "branch": sender.branch,
-                        "year": sender.year,
-                    },
-                    "status": connection.status,
-                    "created_at": connection.created_at,
-                }
-            )
+    return [
+        {
+            "connection_id": connection.id,
+            "user": {
+                "id": connection.sender.id,
+                "full_name": connection.sender.full_name,
+                "username": connection.sender.username,
+                "email": connection.sender.email,
+                "role": connection.sender.role,
+                "bio": connection.sender.bio,
+                "profile_image": connection.sender.profile_image,
+                "course": connection.sender.course,
+                "branch": connection.sender.branch,
+                "year": connection.sender.year,
+            },
+            "status": connection.status,
+            "created_at": connection.created_at,
+        }
+        for connection in connections
+        if connection.sender
+    ]
 
-    return result
+
 @router.get("/sent")
 def get_sent_requests(
     current_user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
     connections = db.scalars(
-        select(Connection).where(
+        select(Connection)
+        .options(joinedload(Connection.receiver))
+        .where(
             Connection.sender_id == current_user_id,
             Connection.status == "pending",
-        ).order_by(Connection.created_at.desc())
-    ).all()
-
-    result = []
-
-    for connection in connections:
-        receiver = db.scalar(
-            select(User).where(User.id == connection.receiver_id)
         )
+        .order_by(Connection.created_at.desc())
+    ).unique().all()
 
-        if receiver:
-            result.append(
-                {
-                    "connection_id": connection.id,
-                    "user": {
-                        "id": receiver.id,
-                        "full_name": receiver.full_name,
-                        "username": receiver.username,
-                        "email": receiver.email,
-                        "role": receiver.role,
-                        "bio": receiver.bio,
-                        "profile_image": receiver.profile_image,
-                        "course": receiver.course,
-                        "branch": receiver.branch,
-                        "year": receiver.year,
-                    },
-                    "status": connection.status,
-                    "created_at": connection.created_at,
-                }
-            )
-
-    return result
+    return [
+        {
+            "connection_id": connection.id,
+            "user": {
+                "id": connection.receiver.id,
+                "full_name": connection.receiver.full_name,
+                "username": connection.receiver.username,
+                "email": connection.receiver.email,
+                "role": connection.receiver.role,
+                "bio": connection.receiver.bio,
+                "profile_image": connection.receiver.profile_image,
+                "course": connection.receiver.course,
+                "branch": connection.receiver.branch,
+                "year": connection.receiver.year,
+            },
+            "status": connection.status,
+            "created_at": connection.created_at,
+        }
+        for connection in connections
+        if connection.receiver
+    ]
 @router.delete("/{connection_id}")
 def delete_connection(
     connection_id: int,

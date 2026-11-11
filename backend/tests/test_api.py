@@ -122,6 +122,23 @@ def test_user_profile_operations(client):
     assert search_res.status_code == 200
     assert any(u["username"] == "bob_smith" for u in search_res.json())
 
+    # Public profile endpoint (GET /users/{id})
+    pub_res = client.get(f"/api/v1/users/{profile['id']}", headers=headers)
+    assert pub_res.status_code == 200
+    pub_data = pub_res.json()
+    assert pub_data["full_name"] == "Bob Smith"
+    assert pub_data["username"] == "bob_smith"
+    assert "email" not in pub_data  # Public profile hides email address
+
+    # Non-existent user public profile returns 404
+    not_found_res = client.get("/api/v1/users/999999", headers=headers)
+    assert not_found_res.status_code == 404
+
+    # Pagination test (skip and limit)
+    paged_res = client.get("/api/v1/users?skip=0&limit=1", headers=headers)
+    assert paged_res.status_code == 200
+    assert len(paged_res.json()) <= 1
+
 
 def test_connection_management_lifecycle(client):
     # Register User 1

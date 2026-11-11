@@ -27,17 +27,17 @@ Legend: ⬜ Not Started | 🔄 In Progress | 🚧 Blocked | ✅ Implemented | �
 
 | ID | Task | Status | Notes |
 |----|------|--------|-------|
-| P1-01 | Add health check endpoint | ✅ Implemented | `GET /health` added & verified by pytest |
-| P1-02 | Add password strength validation | ✅ Implemented | Min 8 chars enforced in `schemas/auth.py` |
-| P1-03 | Add unique constraint migration (connections) | ⬜ Not Started | DB-level uniqueness |
-| P1-04 | Optimize connections queries with JOIN | ⬜ Not Started | Remove N+1 |
-| P1-05 | Add admin role dependency | ✅ Implemented | `get_current_admin()` added in `dependencies.py` |
-| P1-06 | Add public profile view endpoint | ⬜ Not Started | `GET /users/{user_id}` |
-| P1-07 | Add pagination to `GET /users` | ⬜ Not Started | skip/limit params |
-| P1-08 | Add Pydantic response models to all endpoints | ⬜ Not Started | Schema cleanup |
+| P1-01 | Add health check endpoint | ✔️ Completed | `GET /health` added & verified by pytest |
+| P1-02 | Add password strength validation | ✔️ Completed | Min 8 chars enforced in `schemas/auth.py` |
+| P1-03 | Add unique constraint migration (connections) | ✔️ Completed | Alembic revision `1b3551e71d96` applied |
+| P1-04 | Optimize connections queries with JOIN | ✔️ Completed | `joinedload` used for accepted, requests, sent |
+| P1-05 | Add admin role dependency | ✔️ Completed | `get_current_admin()` added in `dependencies.py` |
+| P1-06 | Add public profile view endpoint | ✔️ Completed | `GET /users/{user_id}` added & verified |
+| P1-07 | Add pagination to `GET /users` | ✔️ Completed | `skip` and `limit` params added |
+| P1-08 | Add Pydantic response models to all endpoints | ✔️ Completed | Typed schemas across auth & user endpoints |
 | P1-09 | Create AuthContext / useAuth hook | ✔️ Completed | `src/context/AuthContext.jsx` implemented |
 | P1-10 | Create ProtectedRoute component | ✔️ Completed | `src/components/ProtectedRoute.jsx` implemented |
-| P1-11 | Create Profile page (view + edit) | ⬜ Not Started | `src/pages/Profile.jsx` |
+| P1-11 | Create Profile page (view + edit) | ✔️ Completed | `src/pages/Profile.jsx` view + edit mode |
 | P1-12 | Restructure App.jsx routing | ✔️ Completed | Clean declarative React Router configuration |
 | P1-13 | Update sidebar navigation to use routes | ✔️ Completed | `AppLayout.jsx` with active NavLinks |
 | P1-14 | Connect dashboard stats to backend | ✔️ Completed | Real calculation from `/connections` & profile |
@@ -165,12 +165,12 @@ Legend: ⬜ Not Started | 🔄 In Progress | 🚧 Blocked | ✅ Implemented | �
 | Phase | Total Tasks | Completed | In Progress | Blocked |
 |-------|-------------|-----------|-------------|---------|
 | Phase 0 | 10 | 10 | 0 | 0 |
-| Phase 1 | 14 | 5 | 0 | 0 |
+| Phase 1 | 14 | 14 | 0 | 0 |
 | Phase 2 | 7 | 0 | 0 | 0 |
 | Phase 3 | 13 | 0 | 0 | 0 |
 | Phase 4 | 10 | 0 | 0 | 0 |
 | Phase 5 | 15 | 0 | 0 | 0 |
 | Phase 6 | 13 | 0 | 0 | 0 |
 | Phase 7 | 16 | 0 | 0 | 0 |
-| **Total** | **98** | **15** | **0** | **0** |
+| **Total** | **98** | **24** | **0** | **0** |
 

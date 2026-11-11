@@ -1,11 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_user_id
 from app.db.dependencies import get_db
 from app.models.user import User
-from app.schemas.user import UpdateProfileRequest
+from app.schemas.user import (
+    CurrentUserProfileResponse,
+    PublicUserProfileResponse,
+    UpdateProfileRequest,
+    UpdateProfileResponse,
+)
 
 
 router = APIRouter(
@@ -14,15 +19,15 @@ router = APIRouter(
 )
 
 
-# Get the logged-in user's profile
-@router.get("/me")
+@router.get(
+    "/me",
+    response_model=CurrentUserProfileResponse,
+)
 def get_my_profile(
     user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
-    user = db.scalar(
-        select(User).where(User.id == user_id)
-    )
+    user = db.scalar(select(User).where(User.id == user_id))
 
     if not user:
         raise HTTPException(
@@ -30,33 +35,19 @@ def get_my_profile(
             detail="User not found",
         )
 
-    return {
-        "id": user.id,
-        "full_name": user.full_name,
-        "username": user.username,
-        "email": user.email,
-        "role": user.role,
-        "bio": user.bio,
-        "profile_image": user.profile_image,
-        "course": user.course,
-        "branch": user.branch,
-        "year": user.year,
-        "is_active": user.is_active,
-        "created_at": user.created_at,
-        "updated_at": user.updated_at,
-    }
+    return user
 
 
-# Update the logged-in user's profile
-@router.patch("/me")
+@router.patch(
+    "/me",
+    response_model=UpdateProfileResponse,
+)
 def update_my_profile(
     data: UpdateProfileRequest,
     user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
-    user = db.scalar(
-        select(User).where(User.id == user_id)
-    )
+    user = db.scalar(select(User).where(User.id == user_id))
 
     if not user:
         raise HTTPException(
@@ -74,31 +65,46 @@ def update_my_profile(
 
     return {
         "message": "Profile updated successfully",
-        "user": {
-            "id": user.id,
-            "full_name": user.full_name,
-            "username": user.username,
-            "email": user.email,
-            "role": user.role,
-            "bio": user.bio,
-            "profile_image": user.profile_image,
-            "course": user.course,
-            "branch": user.branch,
-            "year": user.year,
-            "is_active": user.is_active,
-            "created_at": user.created_at,
-            "updated_at": user.updated_at,
-        },
+        "user": user,
     }
 
 
-# Get active users with search and filters
-@router.get("")
+@router.get(
+    "/{user_id}",
+    response_model=PublicUserProfileResponse,
+)
+def get_user_profile(
+    user_id: int,
+    current_user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    user = db.scalar(
+        select(User).where(
+            User.id == user_id,
+            User.is_active == True,
+        )
+    )
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    return user
+
+
+@router.get(
+    "",
+    response_model=list[PublicUserProfileResponse],
+)
 def get_users(
     search: str | None = None,
     course: str | None = None,
     branch: str | None = None,
     year: int | None = None,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
     user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
@@ -111,7 +117,6 @@ def get_users(
     # Search by full name or username
     if search:
         search_pattern = f"%{search}%"
-
         query = query.where(
             (User.full_name.ilike(search_pattern))
             | (User.username.ilike(search_pattern))
@@ -129,20 +134,8 @@ def get_users(
     if year is not None:
         query = query.where(User.year == year)
 
-    users = db.scalars(query).all()
+    # Pagination
+    query = query.offset(skip).limit(limit)
 
-    return [
-        {
-            "id": user.id,
-            "full_name": user.full_name,
-            "username": user.username,
-            "email": user.email,
-            "role": user.role,
-            "bio": user.bio,
-            "profile_image": user.profile_image,
-            "course": user.course,
-            "branch": user.branch,
-            "year": user.year,
-        }
-        for user in users
-    ]
+    users = db.scalars(query).all()
+    return list(users)

@@ -15,6 +15,32 @@ Format:
 
 ---
 
+## [2026-11-11] — Phase 1 Authentication, Profiles & Navigation Complete
+
+### Added
+- `frontend/src/pages/Profile.jsx` — Dedicated Student Profile page with read-only details display and full editing capability (full name, degree/program, branch, academic year, avatar image URL, bio with character counter). Integrates with `useAuth().refreshUser()` for instant global state update.
+- `backend/migrations/versions/1b3551e71d96_add_unique_constraint_to_connections.py` — Alembic migration adding composite unique constraint `uq_connections_sender_receiver` on `connections(sender_id, receiver_id)`.
+- `backend/app/schemas/user.py` — Strongly typed Pydantic models: `PublicUserProfileResponse`, `CurrentUserProfileResponse`, and `UpdateProfileResponse`.
+- `GET /api/v1/users/{user_id}` — Public user profile endpoint in `backend/app/api/users.py`, returning non-sensitive public student details.
+- `GET /health` — Health check endpoint in `backend/app/main.py` for deployment readiness.
+- `backend/app/core/dependencies.py` — Added `get_current_admin` RBAC dependency.
+
+### Changed
+- `backend/app/api/connections.py` — Optimized `GET /accepted`, `GET /requests`, and `GET /sent` endpoints using SQLAlchemy `joinedload` for eager loading, resolving the N+1 query problem.
+- `backend/app/api/users.py` — Added `skip` and `limit` query parameters for pagination on `GET /users`, and linked endpoints to Pydantic response models.
+- `backend/app/schemas/auth.py` — Added minimum 8-character password constraint and explicit response schemas.
+- `frontend/src/App.jsx` — Mounted `<Profile />` component on route `/profile`.
+
+### Database Changes
+- Applied Alembic migration `1b3551e71d96`: added unique constraint `uq_connections_sender_receiver` on `connections(sender_id, receiver_id)`. Existing records preserved.
+
+### Tests Executed
+- Automated `pytest` suite: 4/4 integration suites passed in 0.58s (covering health, registration, login, profile view, profile edit, public profile, pagination, and connections lifecycle).
+- Frontend `npm run lint`: 0 errors, 0 warnings.
+- Frontend `npm run build`: built in 765ms with zero errors.
+
+---
+
 ## [2026-11-11] — Phase 0 Foundation Repair & Stabilization
 
 ### Added

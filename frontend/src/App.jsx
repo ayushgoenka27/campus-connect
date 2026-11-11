@@ -3,6 +3,7 @@ import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AppLayout from "./layout/AppLayout";
 import Dashboard from "./pages/Dashboard";
+import Profile from "./pages/Profile";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ComingSoon from "./pages/ComingSoon";
@@ -83,15 +84,7 @@ export default function App() {
                   />
                 }
               />
-              <Route
-                path="/profile"
-                element={
-                  <ComingSoon
-                    title="Student Profile"
-                    description="Manage your profile information, academic details, and bio."
-                  />
-                }
-              />
+              <Route path="/profile" element={<Profile />} />
               <Route
                 path="/settings"
                 element={

@@ -2,7 +2,7 @@
 
 **Audit Date:** 2026-11-11  
 **Auditor:** Principal Architect / AI Engineering Lead  
-**Current Phase:** Phase 0 Verified — Ready for Phase 1 Approval
+**Current Phase:** Phase 1 Complete — Ready for Phase 2 Approval
 
 ---
 
@@ -75,23 +75,25 @@ Campus Connect/
 - ✅ Pydantic validation on register/login payloads
 
 #### Users (`/api/v1/users`)
-- ✅ `GET /me` — Full profile retrieval (all fields including role, bio, course, etc.)
-- ✅ `PATCH /me` — Partial profile update (bio, course, branch, year, etc.)
-- ✅ `GET /` — List active users with search (name/username), filter by course/branch/year
+- ✅ `GET /me` — Full profile retrieval with typed `CurrentUserProfileResponse`
+- ✅ `PATCH /me` — Partial profile update (full name, bio, course, branch, year, avatar URL)
+- ✅ `GET /{user_id}` — Public profile retrieval with `PublicUserProfileResponse` (hides private email)
+- ✅ `GET /` — List active users with search, category filtering, and pagination (`skip`/`limit`)
 
 #### Connections (`/api/v1/connections`)
 - ✅ `POST /{user_id}` — Send connection request (self-connect prevented, duplicate checked)
 - ✅ `GET /` — All connections (sent + received, all statuses)
 - ✅ `PATCH /{connection_id}?action=` — Accept or reject pending requests (receiver-only)
-- ✅ `GET /accepted` — Accepted connections with full user details
-- ✅ `GET /requests` — Incoming pending requests with sender details
-- ✅ `GET /sent` — Outgoing requests with receiver details
+- ✅ `GET /accepted` — Accepted connections eager-loaded with SQL JOIN (`joinedload`)
+- ✅ `GET /requests` — Incoming pending requests eager-loaded with SQL JOIN (`joinedload`)
+- ✅ `GET /sent` — Outgoing pending requests eager-loaded with SQL JOIN (`joinedload`)
 - ✅ `DELETE /{connection_id}` — Remove a connection (sender or receiver)
 
 #### Database
 - ✅ `users` table — Full schema
 - ✅ `connections` table — sender_id FK, receiver_id FK, status, timestamps
-- ✅ 2 Alembic migrations (users → connections)
+- ✅ Composite unique constraint `uq_connections_sender_receiver` on `connections(sender_id, receiver_id)`
+- ✅ 3 Alembic migrations applied up to `1b3551e71d96`
 - ✅ Indexes on id, email, username, sender_id, receiver_id
 
 ### Frontend — Verified Present
@@ -101,7 +103,8 @@ Campus Connect/
 - ✅ Route Protection — `ProtectedRoute` redirects unauthorized requests to `/login`, renders loading state while validating
 - ✅ Shared AppLayout — Responsive sidebar, topbar, user profile pill, and functional logout button
 - ✅ Dashboard — Connected to live backend (`/api/v1/users/me`, `/api/v1/connections`, `/api/v1/users`), calculates real connection metrics, real profile completion %, and live discover suggestions with functional connect requests
-- ✅ Placeholder Views — `ComingSoon` component wired to all pending workspace routes preventing dead links
+- ✅ Profile Page — Dedicated [`Profile.jsx`](file:///c:/Users/Lenovo/Desktop/Campus%20Connect/frontend/src/pages/Profile.jsx) with complete view and edit modes, instant preview, degree/branch/year/bio editing, and global state sync via `refreshUser()`
+- ✅ Placeholder Views — `ComingSoon` component wired to pending Phase 2–6 workspace routes preventing dead links
 
 ---
 
@@ -109,15 +112,14 @@ Campus Connect/
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Connections UI | Partial | Backend fully implemented; dedicated Discover & Connections pages queued for Phase 2 |
-| User profile editing | Partial | Backend exists (`PATCH /api/v1/users/me`); full edit page queued for Phase 1 |
-| Admin capabilities | Partial | User role field exists; role enforcement dependency & admin dashboard queued for Phase 1 & 4 |
+| Connections UI | Partial | Backend fully optimized; dedicated Discover & Connections pages queued for Phase 2 |
+| Admin dashboard | Partial | User role field exists; `get_current_admin` RBAC dependency active; admin UI queued for Phase 4 |
 
 ---
 
-## 5. Resolved in Phase 0 vs Remaining Technical Issues
+## 5. Resolved in Phase 0 & Phase 1 vs Remaining Technical Issues
 
-### Fixed in Phase 0:
+### Fixed in Phase 0 & Phase 1:
 - ✅ **Login field mismatch:** Fixed in `Login.jsx` (changed `username` to `email`, wired to `useAuth().login`).
 - ✅ **No auth guard on dashboard:** Added `ProtectedRoute` in `App.jsx`.
 - ✅ **Hardcoded user identity:** Replaced with live user data from `AuthContext` (`/api/v1/users/me`).
@@ -129,14 +131,16 @@ Campus Connect/
 - ✅ **Duplicate DATABASE_URL in .env:** Cleaned up `.env` and created `.env.example`.
 - ✅ **`echo=True` in production config:** Disabled in `database.py`.
 - ✅ **Duplicate JS/TS scaffolding:** Removed unused `.tsx` and `vite.config.ts` files; confirmed clean Vite build.
+- ✅ **DB-level unique constraint on connections:** Applied Alembic revision `1b3551e71d96`.
+- ✅ **N+1 queries in connections:** Optimized `GET /accepted`, `/requests`, and `/sent` with SQLAlchemy `joinedload`.
+- ✅ **Public profile endpoint:** Added `GET /api/v1/users/{user_id}` and pagination on `GET /api/v1/users`.
+- ✅ **Dedicated Profile UI:** Created `frontend/src/pages/Profile.jsx` with view and edit modes.
 
-### Remaining Issues (Scheduled for Phase 1+):
+### Remaining Issues (Scheduled for Phase 2+):
 | Issue | Severity | Location | Detail |
 |-------|----------|----------|--------|
-| N+1 query in connections | 🟡 Medium | `connections.py` | Per-row user lookups instead of JOINs (Phase 1) |
-| No DB unique constraint on connections | 🟡 Medium | DB | Only application-level duplicate check (Phase 1 migration) |
+| Dedicated Connections UI | 🟡 Medium | Frontend | Discover & Connections pages (Phase 2) |
 | Weak JWT secret | 🟡 Medium | `.env` | Must use generated 32+ char secret in production deployment |
-| No pagination on `GET /users` | 🟡 Low | `users.py` | To add `skip`/`limit` params in Phase 1 |
 | Services directory empty | 🟡 Low | `app/services/` | Business logic separation starting in Phase 3 |
 
 ---

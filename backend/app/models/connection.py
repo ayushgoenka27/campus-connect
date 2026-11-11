@@ -1,13 +1,24 @@
 from datetime import datetime
+from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
+
+if TYPE_CHECKING:
+    from app.models.user import User
 
 
 class Connection(Base):
     __tablename__ = "connections"
+    __table_args__ = (
+        UniqueConstraint(
+            "sender_id",
+            "receiver_id",
+            name="uq_connections_sender_receiver",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(
         Integer,
@@ -44,4 +55,16 @@ class Connection(Base):
         default=datetime.utcnow,
         onupdate=datetime.utcnow,
         nullable=False,
+    )
+
+    sender: Mapped["User"] = relationship(
+        "User",
+        foreign_keys=[sender_id],
+        lazy="select",
+    )
+
+    receiver: Mapped["User"] = relationship(
+        "User",
+        foreign_keys=[receiver_id],
+        lazy="select",
     )
