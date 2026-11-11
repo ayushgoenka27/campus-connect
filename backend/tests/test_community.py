@@ -336,3 +336,148 @@ def test_post_pagination(client):
 
     # Total reflects all posts in the DB
     assert page1.json()["total"] >= 5
+
+
+def test_post_keyword_search(client):
+    """FR-COMM-4: Keyword search filters posts and updates pagination total."""
+    _user, headers = _register_and_login(client, "search_01")
+
+    client.post(
+        "/api/v1/posts/",
+        json={"content": "Hackathon registration opens tomorrow!"},
+        headers=headers,
+    )
+    client.post(
+        "/api/v1/posts/",
+        json={"content": "Anyone preparing for hackathon finals?"},
+        headers=headers,
+    )
+    client.post(
+        "/api/v1/posts/",
+        json={"content": "Library study room booked for 5 PM."},
+        headers=headers,
+    )
+
+    # Case-insensitive match
+    res = client.get("/api/v1/posts/?search=HACKATHON", headers=headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["total"] == 2
+    assert len(data["posts"]) == 2
+
+    # Search pagination
+    res_paged = client.get("/api/v1/posts/?search=hackathon&skip=1&limit=1", headers=headers)
+    assert res_paged.status_code == 200
+    assert res_paged.json()["total"] == 2
+    assert len(res_paged.json()["posts"]) == 1
+
+    # No-match query
+    res_none = client.get("/api/v1/posts/?search=nonexistent_xyz_term", headers=headers)
+    assert res_none.status_code == 200
+    assert res_none.json()["total"] == 0
+    assert res_none.json()["posts"] == []
+
+
+def test_post_optional_image_url(client):
+    """FR-COMM-1: Optional image_url validation, storage, edit, and clear."""
+    _user, headers = _register_and_login(client, "image_01")
+
+    # 1. Valid https URL
+    res_img = client.post(
+        "/api/v1/posts/",
+        json={
+            "content": "Campus sunset photo",
+            "image_url": "https://example.com/images/sunset.jpg",
+        },
+        headers=headers,
+    )
+    assert res_img.status_code == 201
+    post_data = res_img.json()
+    assert post_data["image_url"] == "https://example.com/images/sunset.jpg"
+    post_id = post_data["id"]
+
+    # 2. Blank string normalizes to None
+    res_blank = client.post(
+        "/api/v1/posts/",
+        json={"content": "Text only post", "image_url": "   "},
+        headers=headers,
+    )
+    assert res_blank.status_code == 201
+    assert res_blank.json()["image_url"] is None
+
+    # 3. Invalid scheme rejected (422)
+    res_bad = client.post(
+        "/api/v1/posts/",
+        json={"content": "Bad URL", "image_url": "javascript:alert(1)"},
+        headers=headers,
+    )
+    assert res_bad.status_code == 422
+
+    # 4. Malformed URL without scheme/host rejected (422)
+    res_rel = client.post(
+        "/api/v1/posts/",
+        json={"content": "Bad URL 2", "image_url": "not-a-valid-url"},
+        headers=headers,
+    )
+    assert res_rel.status_code == 422
+
+    # 5. Edit image_url then clear it
+    res_edit = client.patch(
+        f"/api/v1/posts/{post_id}",
+        json={"image_url": "https://example.com/images/updated.png"},
+        headers=headers,
+    )
+    assert res_edit.status_code == 200
+    assert res_edit.json()["image_url"] == "https://example.com/images/updated.png"
+    assert res_edit.json()["content"] == "Campus sunset photo"
+
+    res_clear = client.patch(
+        f"/api/v1/posts/{post_id}",
+        json={"image_url": ""},
+        headers=headers,
+    )
+    assert res_clear.status_code == 200
+    assert res_clear.json()["image_url"] is None
+
+
+def test_list_posts_uses_batched_queries(client, db_session):
+    """NFR-5: Verify listing N posts does not scale queries linearly (no N+1)."""
+    from sqlalchemy import event
+
+    _user, headers = _register_and_login(client, "batch_01")
+    _, headers_2 = _register_and_login(client, "batch_02")
+
+    # Create 10 posts with likes and comments
+    for i in range(10):
+        p = client.post(
+            "/api/v1/posts/",
+            json={"content": f"Batch test post {i}"},
+            headers=headers,
+        ).json()
+        client.post(f"/api/v1/posts/{p['id']}/like", headers=headers_2)
+        client.post(
+            f"/api/v1/posts/{p['id']}/comments",
+            json={"content": "Comment"},
+            headers=headers_2,
+        )
+
+    queries: list[str] = []
+    engine = db_session.get_bind()
+
+    def count_queries(conn, cursor, statement, parameters, context, executemany):
+        queries.append(statement)
+
+    event.listen(engine, "before_cursor_execute", count_queries)
+    try:
+        res = client.get("/api/v1/posts/?skip=0&limit=10", headers=headers_2)
+    finally:
+        event.remove(engine, "before_cursor_execute", count_queries)
+
+    assert res.status_code == 200
+    data = res.json()
+    assert len(data["posts"]) == 10
+    assert all(p["like_count"] == 1 and p["comment_count"] == 1 and p["is_liked"] for p in data["posts"])
+    # 1 auth user lookup + 1 count + 1 posts+author join + 3 batched aggregates = 6 queries max (far below 30+ N+1)
+    assert len(queries) <= 8
+
+

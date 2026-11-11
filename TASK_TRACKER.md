@@ -1,6 +1,6 @@
 # Campus Connect — Task Tracker
 
-**Last Updated:** 2026-11-11
+**Last Updated:** 2026-11-11 (Phase 3 + SRS remediation complete)
 
 Legend: ⬜ Not Started | 🔄 In Progress | 🚧 Blocked | ✅ Implemented | 🧪 Tested | ✔️ Completed
 
@@ -62,19 +62,19 @@ Legend: ⬜ Not Started | 🔄 In Progress | 🚧 Blocked | ✅ Implemented | �
 
 | ID | Task | Status | Notes |
 |----|------|--------|-------|
-| P3-01 | Create Post model | ⬜ Not Started | `models/post.py` |
-| P3-02 | Create Comment model | ⬜ Not Started | `models/comment.py` |
-| P3-03 | Create Like model | ⬜ Not Started | `models/like.py` |
-| P3-04 | Create Alembic migration (community) | ⬜ Not Started | Posts/comments/likes |
-| P3-05 | Create post schemas | ⬜ Not Started | `schemas/post.py` |
-| P3-06 | Create post API | ⬜ Not Started | `api/posts.py` |
-| P3-07 | Create comment API | ⬜ Not Started | Comments on posts |
-| P3-08 | Create like API | ⬜ Not Started | Like/unlike toggle |
-| P3-09 | Create Community page | ⬜ Not Started | `src/pages/Community.jsx` |
-| P3-10 | Create post composer component | ⬜ Not Started | Write + submit post |
-| P3-11 | Create post card component | ⬜ Not Started | With like/comment |
-| P3-12 | Create comment section component | ⬜ Not Started | List + add comments |
-| P3-13 | Implement edit/delete for own content | ⬜ Not Started | Authorization-aware UI |
+| P3-01 | Create Post model | ✔️ Completed | `models/post.py` — id, author_id FK, content (Text), optional nullable `image_url`, timestamps |
+| P3-02 | Create Comment model | ✔️ Completed | `models/comment.py` — id, post_id FK (CASCADE), author_id FK, content (Text), created_at |
+| P3-03 | Create Like model | ✔️ Completed | `models/like.py` — id, post_id FK (CASCADE), user_id FK, UniqueConstraint `uq_likes_post_user` |
+| P3-04 | Create Alembic migration (community) | ✔️ Completed | Revisions `abd8d6ee3c59` & `115f1d3a947f` (`posts.image_url`) + `0046fc91e8d6` (`uq_connections_user_pair`), upgrade/downgrade verified |
+| P3-05 | Create post schemas | ✔️ Completed | `schemas/post.py` — `image_url` HTTP/HTTPS validation & normalization, Post/Comment/Like schemas |
+| P3-06 | Create post API | ✔️ Completed | `api/posts.py` — CRUD + `search` keyword filter (`FR-COMM-4`), pagination, batched aggregates (no N+1) |
+| P3-07 | Create comment API | ✔️ Completed | POST/GET `/posts/{id}/comments`, DELETE `/posts/comments/{id}` |
+| P3-08 | Create like API | ✔️ Completed | POST `/posts/{id}/like` — idempotent toggle returning `liked` bool + `like_count` |
+| P3-09 | Create Community page | ✔️ Completed | `src/pages/Community.jsx` — debounced keyword search bar, pagination, skeletons, error retry, empty states |
+| P3-10 | Create post composer component | ✔️ Completed | Inline `PostComposer` — textarea, char counter (2000), optional `image_url` input with validation & preview |
+| P3-11 | Create post card component | ✔️ Completed | Inline `PostCard` — image rendering with `onError` fallback, optimistic like, comment toggle, edit/delete for own |
+| P3-12 | Create comment section component | ✔️ Completed | Inline `CommentSection` + `CommentItem` — lazy-loaded, add/delete comments, oldest first |
+| P3-13 | Implement edit/delete for own content | ✔️ Completed | Inline edit mode on `PostCard` (`content` + `image_url`), delete with `confirm()`, 403 backend enforcement |
 
 ---
 
@@ -166,11 +166,11 @@ Legend: ⬜ Not Started | 🔄 In Progress | 🚧 Blocked | ✅ Implemented | �
 |-------|-------------|-----------|-------------|---------|
 | Phase 0 | 10 | 10 | 0 | 0 |
 | Phase 1 | 14 | 14 | 0 | 0 |
-| Phase 2 | 7 | 0 | 0 | 0 |
-| Phase 3 | 13 | 0 | 0 | 0 |
+| Phase 2 | 7 | 7 | 0 | 0 |
+| Phase 3 | 13 | 13 | 0 | 0 |
 | Phase 4 | 10 | 0 | 0 | 0 |
 | Phase 5 | 15 | 0 | 0 | 0 |
 | Phase 6 | 13 | 0 | 0 | 0 |
 | Phase 7 | 16 | 0 | 0 | 0 |
-| **Total** | **98** | **24** | **0** | **0** |
+| **Total** | **98** | **44** | **0** | **0** |
 

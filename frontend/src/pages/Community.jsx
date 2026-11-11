@@ -10,6 +10,9 @@ import {
   AlertCircle,
   Users,
   Loader2,
+  Search,
+  Image as ImageIcon,
+  ImageOff,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import api from "../api/client";
@@ -32,21 +35,63 @@ function formatRelativeTime(dateStr) {
 function getInitials(name = "") {
   return name
     .split(" ")
+    .filter(Boolean)
     .map((w) => w[0])
     .join("")
     .toUpperCase()
     .slice(0, 2);
 }
 
+function validateImageUrl(rawValue) {
+  const trimmed = (rawValue || "").trim();
+  if (!trimmed) {
+    return { valid: true, normalized: null, error: null };
+  }
+  if (trimmed.length > 500) {
+    return {
+      valid: false,
+      normalized: null,
+      error: "Image URL must be 500 characters or fewer.",
+    };
+  }
+  if (/\s/.test(trimmed)) {
+    return {
+      valid: false,
+      normalized: null,
+      error: "Image URL must not contain spaces.",
+    };
+  }
+  try {
+    const parsed = new URL(trimmed);
+    if ((parsed.protocol !== "http:" && parsed.protocol !== "https:") || !parsed.hostname) {
+      return {
+        valid: false,
+        normalized: null,
+        error: "Image URL must start with http:// or https://.",
+      };
+    }
+    return { valid: true, normalized: trimmed, error: null };
+  } catch {
+    return {
+      valid: false,
+      normalized: null,
+      error: "Enter a valid http:// or https:// image URL.",
+    };
+  }
+}
+
 function AvatarOrInitials({ user, size = "md" }) {
   const sizes = { sm: "w-7 h-7 text-xs", md: "w-10 h-10 text-sm", lg: "w-12 h-12 text-base" };
   const cls = sizes[size] ?? sizes.md;
-  if (user?.profile_image) {
+  const [failedAvatarUrl, setFailedAvatarUrl] = useState(null);
+
+  if (user?.profile_image && failedAvatarUrl !== user.profile_image) {
     return (
       <img
         src={user.profile_image}
         alt={user.full_name}
-        className={`${cls} rounded-full object-cover ring-2 ring-slate-100`}
+        onError={() => setFailedAvatarUrl(user.profile_image)}
+        className={`${cls} rounded-full object-cover ring-2 ring-slate-100 shrink-0`}
       />
     );
   }
@@ -55,6 +100,39 @@ function AvatarOrInitials({ user, size = "md" }) {
       className={`${cls} rounded-full bg-slate-200 flex items-center justify-center font-semibold text-slate-600 ring-2 ring-slate-100 shrink-0`}
     >
       {getInitials(user?.full_name)}
+    </div>
+  );
+}
+
+function PostImage({ src, alt = "Post attachment" }) {
+  const [failedSrc, setFailedSrc] = useState(null);
+
+  if (!src) return null;
+
+  if (failedSrc === src) {
+    return (
+      <div
+        data-testid="post-image-fallback"
+        className="flex items-center gap-2.5 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3.5 py-3 text-xs text-slate-500"
+      >
+        <ImageOff size={16} className="shrink-0 text-slate-400" />
+        <div className="min-w-0">
+          <p className="font-medium text-slate-600">Image unavailable</p>
+          <p className="truncate text-[11px] text-slate-400">{src}</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+      <img
+        src={src}
+        alt={alt}
+        loading="lazy"
+        onError={() => setFailedSrc(src)}
+        className="max-h-96 w-full object-cover"
+      />
     </div>
   );
 }
@@ -80,7 +158,7 @@ function Toast({ message, type = "success", onClose }) {
     >
       {type === "error" ? <AlertCircle size={16} /> : <Check size={16} />}
       <span>{message}</span>
-      <button onClick={onClose} className="ml-1 opacity-60 hover:opacity-100">
+      <button onClick={onClose} className="ml-1 opacity-60 hover:opacity-100" aria-label="Dismiss toast">
         <X size={14} />
       </button>
     </div>
@@ -88,34 +166,49 @@ function Toast({ message, type = "success", onClose }) {
 }
 
 // ---------------------------------------------------------------------------
-// Post Composer (P3-10)
+// Post Composer (P3-10, FR-COMM-1)
 // ---------------------------------------------------------------------------
 
 function PostComposer({ currentUser, onPostCreated }) {
   const [content, setContent] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [showImageInput, setShowImageInput] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const MAX = 2000;
+
+  const urlCheck = validateImageUrl(imageUrl);
+  const remaining = MAX - content.length;
+  const isOverLimit = remaining < 0;
 
   async function handleSubmit(e) {
     e.preventDefault();
     const trimmed = content.trim();
     if (!trimmed) return;
+    if (!urlCheck.valid) {
+      setError(urlCheck.error);
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
     try {
-      const res = await api.post("/posts/", { content: trimmed });
+      const payload = { content: trimmed };
+      if (urlCheck.normalized) {
+        payload.image_url = urlCheck.normalized;
+      }
+      const res = await api.post("/posts/", payload);
       setContent("");
+      setImageUrl("");
+      setShowImageInput(false);
       onPostCreated(res.data);
     } catch (err) {
-      setError(err.response?.data?.detail || "Failed to create post");
+      const detail = err.response?.data?.detail;
+      setError(typeof detail === "string" ? detail : "Failed to create post");
     } finally {
       setSubmitting(false);
     }
   }
-
-  const remaining = MAX - content.length;
-  const isOverLimit = remaining < 0;
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-4">
@@ -129,17 +222,81 @@ function PostComposer({ currentUser, onPostCreated }) {
             rows={3}
             className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:bg-white transition"
           />
-          <div className="flex items-center justify-between">
-            <span
-              className={`text-xs font-medium ${
-                isOverLimit ? "text-red-500" : remaining < 100 ? "text-amber-500" : "text-slate-400"
-              }`}
-            >
-              {remaining.toLocaleString()} characters remaining
-            </span>
+
+          {showImageInput && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <ImageIcon
+                    size={15}
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                  />
+                  <input
+                    type="url"
+                    value={imageUrl}
+                    onChange={(e) => {
+                      setImageUrl(e.target.value);
+                      if (error) setError(null);
+                    }}
+                    placeholder="Optional image URL (https://...)"
+                    aria-label="Post image URL"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-8 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:bg-white transition"
+                  />
+                  {imageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setImageUrl("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      aria-label="Clear image URL"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+              {imageUrl.trim() && !urlCheck.valid && (
+                <p className="text-xs text-red-600 flex items-center gap-1">
+                  <AlertCircle size={12} /> {urlCheck.error}
+                </p>
+              )}
+              {urlCheck.valid && urlCheck.normalized && (
+                <PostImage src={urlCheck.normalized} alt="New post image preview" />
+              )}
+            </div>
+          )}
+
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  if (showImageInput) {
+                    setImageUrl("");
+                    setShowImageInput(false);
+                  } else {
+                    setShowImageInput(true);
+                  }
+                }}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition ${
+                  showImageInput
+                    ? "bg-slate-100 text-slate-800"
+                    : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                }`}
+              >
+                <ImageIcon size={14} />
+                <span>{showImageInput ? "Remove image" : "Add image URL"}</span>
+              </button>
+              <span
+                className={`text-xs font-medium ${
+                  isOverLimit ? "text-red-500" : remaining < 100 ? "text-amber-500" : "text-slate-400"
+                }`}
+              >
+                {remaining.toLocaleString()} left
+              </span>
+            </div>
             <button
               type="submit"
-              disabled={submitting || !content.trim() || isOverLimit}
+              disabled={submitting || !content.trim() || isOverLimit || !urlCheck.valid}
               className="inline-flex items-center gap-1.5 rounded-xl bg-slate-950 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
               {submitting ? (
@@ -165,7 +322,7 @@ function PostComposer({ currentUser, onPostCreated }) {
 // Comment Item (P3-12)
 // ---------------------------------------------------------------------------
 
-function CommentItem({ comment, currentUserId, onDelete }) {
+function CommentItem({ comment, currentUserId, onDelete, onError }) {
   const isOwn = comment.author.id === currentUserId;
   const [deleting, setDeleting] = useState(false);
 
@@ -176,7 +333,7 @@ function CommentItem({ comment, currentUserId, onDelete }) {
       await api.delete(`/posts/comments/${comment.id}`);
       onDelete(comment.id);
     } catch {
-      // silently fail — parent will show nothing changed
+      onError?.("Failed to delete comment");
       setDeleting(false);
     }
   }
@@ -201,8 +358,9 @@ function CommentItem({ comment, currentUserId, onDelete }) {
         <button
           onClick={handleDelete}
           disabled={deleting}
-          className="self-center opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-500 transition"
+          className="self-center opacity-0 group-hover:opacity-100 focus:opacity-100 p-1 text-slate-400 hover:text-red-500 transition"
           title="Delete comment"
+          aria-label="Delete comment"
         >
           {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
         </button>
@@ -215,7 +373,7 @@ function CommentItem({ comment, currentUserId, onDelete }) {
 // Comment Section (P3-12)
 // ---------------------------------------------------------------------------
 
-function CommentSection({ postId, commentCount, currentUser }) {
+function CommentSection({ postId, commentCount, currentUser, onError }) {
   const [open, setOpen] = useState(false);
   const [comments, setComments] = useState([]);
   const [total, setTotal] = useState(commentCount);
@@ -253,6 +411,7 @@ function CommentSection({ postId, commentCount, currentUser }) {
     const trimmed = newComment.trim();
     if (!trimmed) return;
     setSubmitting(true);
+    setError(null);
     try {
       const res = await api.post(`/posts/${postId}/comments`, { content: trimmed });
       setComments((prev) => [...prev, res.data]);
@@ -305,12 +464,12 @@ function CommentSection({ postId, commentCount, currentUser }) {
                   comment={c}
                   currentUserId={currentUser.id}
                   onDelete={handleDeleteComment}
+                  onError={onError}
                 />
               ))}
             </div>
           )}
 
-          {/* Add comment form */}
           <form onSubmit={handleAddComment} className="flex gap-2 mt-2">
             <AvatarOrInitials user={currentUser} size="sm" />
             <div className="flex-1 flex gap-2">
@@ -325,6 +484,7 @@ function CommentSection({ postId, commentCount, currentUser }) {
               <button
                 type="submit"
                 disabled={submitting || !newComment.trim()}
+                aria-label="Send comment"
                 className="rounded-xl bg-slate-950 px-3 py-1.5 text-white hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition"
               >
                 {submitting ? (
@@ -345,7 +505,7 @@ function CommentSection({ postId, commentCount, currentUser }) {
 // Post Card (P3-11, P3-13)
 // ---------------------------------------------------------------------------
 
-function PostCard({ post, currentUser, onDelete, onUpdate }) {
+function PostCard({ post, currentUser, onDelete, onUpdate, onToast }) {
   const isOwn = post.author.id === currentUser.id;
   const [liked, setLiked] = useState(post.is_liked);
   const [likeCount, setLikeCount] = useState(post.like_count);
@@ -353,12 +513,15 @@ function PostCard({ post, currentUser, onDelete, onUpdate }) {
 
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState(post.content);
+  const [editImageUrl, setEditImageUrl] = useState(post.image_url || "");
+  const [editError, setEditError] = useState(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  const editUrlCheck = validateImageUrl(editImageUrl);
+
   async function handleLike() {
     if (liking) return;
-    // Optimistic update
     const prevLiked = liked;
     const prevCount = likeCount;
     setLiked(!liked);
@@ -369,9 +532,9 @@ function PostCard({ post, currentUser, onDelete, onUpdate }) {
       setLiked(res.data.liked);
       setLikeCount(res.data.like_count);
     } catch {
-      // Rollback
       setLiked(prevLiked);
       setLikeCount(prevCount);
+      onToast?.("Failed to update like", "error");
     } finally {
       setLiking(false);
     }
@@ -379,17 +542,30 @@ function PostCard({ post, currentUser, onDelete, onUpdate }) {
 
   async function handleSaveEdit() {
     const trimmed = editContent.trim();
-    if (!trimmed || trimmed === post.content) {
+    if (!trimmed) return;
+    if (!editUrlCheck.valid) {
+      setEditError(editUrlCheck.error);
+      return;
+    }
+    const currentImageUrl = post.image_url || null;
+    if (trimmed === post.content && editUrlCheck.normalized === currentImageUrl) {
       setEditing(false);
       return;
     }
+
     setSaving(true);
+    setEditError(null);
     try {
-      const res = await api.patch(`/posts/${post.id}`, { content: trimmed });
-      onUpdate({ ...post, content: res.data.content, updated_at: res.data.updated_at });
+      const res = await api.patch(`/posts/${post.id}`, {
+        content: trimmed,
+        image_url: editUrlCheck.normalized,
+      });
+      onUpdate(res.data);
       setEditing(false);
-    } catch {
-      // keep edit open
+      onToast?.("Post updated");
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      setEditError(typeof detail === "string" ? detail : "Failed to save post");
     } finally {
       setSaving(false);
     }
@@ -402,6 +578,7 @@ function PostCard({ post, currentUser, onDelete, onUpdate }) {
       await api.delete(`/posts/${post.id}`);
       onDelete(post.id);
     } catch {
+      onToast?.("Failed to delete post", "error");
       setDeleting(false);
     }
   }
@@ -435,10 +612,13 @@ function PostCard({ post, currentUser, onDelete, onUpdate }) {
             <button
               onClick={() => {
                 setEditContent(post.content);
+                setEditImageUrl(post.image_url || "");
+                setEditError(null);
                 setEditing(true);
               }}
               className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
               title="Edit post"
+              aria-label="Edit post"
             >
               <Pencil size={14} />
             </button>
@@ -447,6 +627,7 @@ function PostCard({ post, currentUser, onDelete, onUpdate }) {
               disabled={deleting}
               className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition"
               title="Delete post"
+              aria-label="Delete post"
             >
               {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
             </button>
@@ -456,7 +637,7 @@ function PostCard({ post, currentUser, onDelete, onUpdate }) {
 
       {/* Content / Edit mode */}
       {editing ? (
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           <textarea
             value={editContent}
             onChange={(e) => setEditContent(e.target.value)}
@@ -464,6 +645,38 @@ function PostCard({ post, currentUser, onDelete, onUpdate }) {
             maxLength={2000}
             className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:bg-white transition"
           />
+          <div className="relative">
+            <ImageIcon
+              size={15}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+            />
+            <input
+              type="url"
+              value={editImageUrl}
+              onChange={(e) => {
+                setEditImageUrl(e.target.value);
+                if (editError) setEditError(null);
+              }}
+              placeholder="Optional image URL (https://...)"
+              aria-label="Edit post image URL"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-8 py-1.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:bg-white transition"
+            />
+            {editImageUrl && (
+              <button
+                type="button"
+                onClick={() => setEditImageUrl("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                aria-label="Clear edited image URL"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          {(editError || (editImageUrl.trim() && !editUrlCheck.valid)) && (
+            <p className="text-xs text-red-600 flex items-center gap-1">
+              <AlertCircle size={12} /> {editError || editUrlCheck.error}
+            </p>
+          )}
           <div className="flex gap-2 justify-end">
             <button
               onClick={() => setEditing(false)}
@@ -473,7 +686,7 @@ function PostCard({ post, currentUser, onDelete, onUpdate }) {
             </button>
             <button
               onClick={handleSaveEdit}
-              disabled={saving || !editContent.trim()}
+              disabled={saving || !editContent.trim() || !editUrlCheck.valid}
               className="inline-flex items-center gap-1 px-3 py-1 text-xs rounded-lg bg-slate-950 text-white hover:bg-slate-800 disabled:opacity-50 transition"
             >
               {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
@@ -482,17 +695,20 @@ function PostCard({ post, currentUser, onDelete, onUpdate }) {
           </div>
         </div>
       ) : (
-        <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap break-words">
-          {post.content}
-        </p>
+        <div className="space-y-3">
+          <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap break-words">
+            {post.content}
+          </p>
+          <PostImage src={post.image_url} alt={`Attachment by ${post.author.full_name}`} />
+        </div>
       )}
 
       {/* Actions row */}
       <div className="flex items-center gap-4 pt-1 border-t border-slate-50">
-        {/* Like button */}
         <button
           onClick={handleLike}
           disabled={liking}
+          aria-label={liked ? "Unlike post" : "Like post"}
           className={`flex items-center gap-1.5 text-xs font-medium transition ${
             liked
               ? "text-red-500 hover:text-red-600"
@@ -507,11 +723,11 @@ function PostCard({ post, currentUser, onDelete, onUpdate }) {
           <span>{likeCount}</span>
         </button>
 
-        {/* Comment toggle */}
         <CommentSection
           postId={post.id}
           commentCount={post.comment_count}
           currentUser={currentUser}
+          onError={(msg) => onToast?.(msg, "error")}
         />
       </div>
     </div>
@@ -546,7 +762,7 @@ function PostSkeleton() {
 }
 
 // ---------------------------------------------------------------------------
-// Community Page (P3-09)
+// Community Page (P3-09, FR-COMM-4)
 // ---------------------------------------------------------------------------
 
 export default function Community() {
@@ -559,10 +775,23 @@ export default function Community() {
   const [error, setError] = useState(null);
   const [toast, setToast] = useState(null);
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [reloadTick, setReloadTick] = useState(0);
+
   const LIMIT = 10;
   const hasMore = posts.length < total;
+  const isSearching = Boolean(debouncedSearch);
 
-  // Initial load
+  // Debounce search input (300ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery.trim());
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Fetch posts on initial mount, debounced search change, or retry
   useEffect(() => {
     let cancelled = false;
 
@@ -570,7 +799,11 @@ export default function Community() {
       setLoading(true);
       setError(null);
       try {
-        const res = await api.get(`/posts/?skip=0&limit=${LIMIT}`);
+        const params = { skip: 0, limit: LIMIT };
+        if (debouncedSearch) {
+          params.search = debouncedSearch;
+        }
+        const res = await api.get("/posts/", { params });
         if (!cancelled) {
           setPosts(res.data.posts);
           setTotal(res.data.total);
@@ -586,13 +819,17 @@ export default function Community() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [debouncedSearch, reloadTick]);
 
   async function handleLoadMore() {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     try {
-      const res = await api.get(`/posts/?skip=${posts.length}&limit=${LIMIT}`);
+      const params = { skip: posts.length, limit: LIMIT };
+      if (debouncedSearch) {
+        params.search = debouncedSearch;
+      }
+      const res = await api.get("/posts/", { params });
       setPosts((prev) => [...prev, ...res.data.posts]);
       setTotal(res.data.total);
     } catch {
@@ -603,8 +840,13 @@ export default function Community() {
   }
 
   function handlePostCreated(newPost) {
-    setPosts((prev) => [newPost, ...prev]);
-    setTotal((t) => t + 1);
+    if (!debouncedSearch || newPost.content.toLowerCase().includes(debouncedSearch.toLowerCase())) {
+      setPosts((prev) => [newPost, ...prev]);
+      setTotal((t) => t + 1);
+    } else {
+      setSearchQuery("");
+      setDebouncedSearch("");
+    }
     showToast("Post shared successfully!");
   }
 
@@ -616,6 +858,11 @@ export default function Community() {
 
   function handlePostUpdated(updatedPost) {
     setPosts((prev) => prev.map((p) => (p.id === updatedPost.id ? updatedPost : p)));
+  }
+
+  function handleClearSearch() {
+    setSearchQuery("");
+    setDebouncedSearch("");
   }
 
   function showToast(message, type = "success") {
@@ -631,10 +878,36 @@ export default function Community() {
             <h1 className="text-xl font-bold text-slate-800">Community</h1>
             <p className="text-sm text-slate-500">Share updates and interact with your campus</p>
           </div>
-          {!loading && (
+          {!loading && !error && (
             <span className="text-xs text-slate-400 font-medium">
               {total} {total === 1 ? "post" : "posts"}
             </span>
+          )}
+        </div>
+
+        {/* Keyword search bar (FR-COMM-4) */}
+        <div className="relative">
+          <Search
+            size={16}
+            className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+          />
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search community posts by keyword..."
+            aria-label="Search community posts"
+            className="w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-10 py-2.5 text-sm text-slate-800 placeholder-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-300 transition"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={handleClearSearch}
+              aria-label="Clear search"
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+            >
+              <X size={15} />
+            </button>
           )}
         </div>
 
@@ -645,7 +918,7 @@ export default function Community() {
 
         {/* Feed */}
         {loading ? (
-          <div className="space-y-4">
+          <div className="space-y-4" aria-label="Loading posts">
             {[1, 2, 3].map((i) => (
               <PostSkeleton key={i} />
             ))}
@@ -656,8 +929,8 @@ export default function Community() {
             <div>
               <p className="font-medium text-sm">{error}</p>
               <button
-                onClick={() => window.location.reload()}
-                className="text-xs underline mt-0.5"
+                onClick={() => setReloadTick((t) => t + 1)}
+                className="text-xs underline mt-0.5 font-medium"
               >
                 Retry
               </button>
@@ -666,12 +939,29 @@ export default function Community() {
         ) : posts.length === 0 ? (
           <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-12 text-center space-y-3">
             <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center mx-auto">
-              <Users size={24} className="text-slate-400" />
+              {isSearching ? (
+                <Search size={24} className="text-slate-400" />
+              ) : (
+                <Users size={24} className="text-slate-400" />
+              )}
             </div>
-            <p className="text-slate-600 font-medium">No posts yet</p>
-            <p className="text-sm text-slate-400">
-              Be the first to share something with the campus!
+            <p className="text-slate-600 font-medium">
+              {isSearching ? `No posts matching "${debouncedSearch}"` : "No posts yet"}
             </p>
+            <p className="text-sm text-slate-400">
+              {isSearching
+                ? "Try a different keyword or clear the search filter."
+                : "Be the first to share something with the campus!"}
+            </p>
+            {isSearching && (
+              <button
+                type="button"
+                onClick={handleClearSearch}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-slate-950 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 transition"
+              >
+                <X size={14} /> Clear search
+              </button>
+            )}
           </div>
         ) : (
           <>
@@ -683,11 +973,11 @@ export default function Community() {
                   currentUser={currentUser}
                   onDelete={handlePostDeleted}
                   onUpdate={handlePostUpdated}
+                  onToast={showToast}
                 />
               ))}
             </div>
 
-            {/* Load more */}
             {hasMore && (
               <div className="text-center pt-2">
                 <button

@@ -390,4 +390,158 @@ def test_reject_and_cancel_connection_request(client):
     reaccept_res = client.patch(f"/api/v1/connections/{conn2_id}?action=accepted", headers=headers_g)
     assert reaccept_res.status_code == 400
 
+    # 7. After rejection, Alan can send a fresh connection request to Grace
+    rerequest_res = client.post(f"/api/v1/connections/{grace['id']}", headers=headers_a)
+    assert rerequest_res.status_code == 201
+    assert rerequest_res.json()["connection"]["status"] == "pending"
+
+    # 8. Pending bidirectional duplicate check still returns 409 (Grace -> Alan)
+    reverse_dup = client.post(f"/api/v1/connections/{alan['id']}", headers=headers_g)
+    assert reverse_dup.status_code == 409
+
+    # 9. Grace rejects again, then Grace (former receiver) sends fresh request to Alan
+    new_conn_id = rerequest_res.json()["connection"]["id"]
+    assert client.patch(f"/api/v1/connections/{new_conn_id}?action=rejected", headers=headers_g).status_code == 200
+    reverse_after_reject = client.post(f"/api/v1/connections/{alan['id']}", headers=headers_g)
+    assert reverse_after_reject.status_code == 201
+    assert reverse_after_reject.json()["connection"]["status"] == "pending"
+
+    # 10. Connection lists do not leak peer email addresses
+    sent_items = client.get("/api/v1/connections/sent", headers=headers_g).json()
+    req_items = client.get("/api/v1/connections/requests", headers=headers_a).json()
+    assert len(sent_items) == 1 and "email" not in sent_items[0]["user"]
+    assert len(req_items) == 1 and "email" not in req_items[0]["user"]
+
+    final_id = reverse_after_reject.json()["connection"]["id"]
+    assert client.patch(f"/api/v1/connections/{final_id}?action=accepted", headers=headers_a).status_code == 200
+    acc_items = client.get("/api/v1/connections/accepted", headers=headers_g).json()
+    assert len(acc_items) == 1 and "email" not in acc_items[0]["user"]
+
+
+def test_concurrent_duplicate_connection_integrity_error(client, db_session, monkeypatch):
+    """Verify IntegrityError on concurrent connection insert rolls back and returns 409."""
+    from sqlalchemy.exc import IntegrityError
+
+    client.post(
+        "/api/v1/auth/register",
+        json={
+            "full_name": "Race One",
+            "username": "race_one",
+            "email": "race1@university.edu",
+            "password": "Password123!",
+        },
+    )
+    client.post(
+        "/api/v1/auth/register",
+        json={
+            "full_name": "Race Two",
+            "username": "race_two",
+            "email": "race2@university.edu",
+            "password": "Password123!",
+        },
+    )
+    token1 = client.post(
+        "/api/v1/auth/login",
+        json={"email": "race1@university.edu", "password": "Password123!"},
+    ).json()["access_token"]
+    token2 = client.post(
+        "/api/v1/auth/login",
+        json={"email": "race2@university.edu", "password": "Password123!"},
+    ).json()["access_token"]
+    u2_id = client.get("/api/v1/users/me", headers={"Authorization": f"Bearer {token2}"}).json()["id"]
+
+    rollback_called = {"count": 0}
+    orig_commit = db_session.commit
+    orig_rollback = db_session.rollback
+
+    def fail_commit_once():
+        raise IntegrityError("INSERT INTO connections ...", {}, Exception("duplicate key"))
+
+    def track_rollback():
+        rollback_called["count"] += 1
+        orig_rollback()
+
+    monkeypatch.setattr(db_session, "commit", fail_commit_once)
+    monkeypatch.setattr(db_session, "rollback", track_rollback)
+
+    res = client.post(
+        f"/api/v1/connections/{u2_id}",
+        headers={"Authorization": f"Bearer {token1}"},
+    )
+    monkeypatch.setattr(db_session, "commit", orig_commit)
+
+    assert res.status_code == 409
+    assert "already exists" in res.json()["detail"]
+    assert rollback_called["count"] == 1
+
+
+def test_opposite_direction_db_unique_index_blocks_concurrent_race(client, db_session, monkeypatch):
+    """Verify DB unique index uq_connections_user_pair blocks simultaneous A->B and B->A inserts."""
+    from sqlalchemy.exc import IntegrityError
+    from app.models.connection import Connection
+
+    client.post(
+        "/api/v1/auth/register",
+        json={
+            "full_name": "Sym One",
+            "username": "sym_one",
+            "email": "sym1@university.edu",
+            "password": "Password123!",
+        },
+    )
+    client.post(
+        "/api/v1/auth/register",
+        json={
+            "full_name": "Sym Two",
+            "username": "sym_two",
+            "email": "sym2@university.edu",
+            "password": "Password123!",
+        },
+    )
+    token1 = client.post(
+        "/api/v1/auth/login",
+        json={"email": "sym1@university.edu", "password": "Password123!"},
+    ).json()["access_token"]
+    token2 = client.post(
+        "/api/v1/auth/login",
+        json={"email": "sym2@university.edu", "password": "Password123!"},
+    ).json()["access_token"]
+    u1_id = client.get("/api/v1/users/me", headers={"Authorization": f"Bearer {token1}"}).json()["id"]
+    u2_id = client.get("/api/v1/users/me", headers={"Authorization": f"Bearer {token2}"}).json()["id"]
+
+    # 1. User 1 -> User 2 succeeds
+    res1 = client.post(
+        f"/api/v1/connections/{u2_id}",
+        headers={"Authorization": f"Bearer {token1}"},
+    )
+    assert res1.status_code == 201
+
+    # 2. Direct DB insert of opposite direction User 2 -> User 1 must raise real IntegrityError
+    nested = db_session.begin_nested()
+    db_session.add(Connection(sender_id=u2_id, receiver_id=u1_id, status="pending"))
+    with pytest.raises(IntegrityError):
+        db_session.flush()
+    nested.rollback()
+
+    # 3. Simulate simultaneous API race where app duplicate pre-check missed existing A->B row:
+    # uq_connections_user_pair rejects B->A at commit(), handler rolls back, returns 409.
+    orig_scalar = db_session.scalar
+
+    def miss_existing_conn_check(stmt, *args, **kwargs):
+        if Connection in getattr(stmt, "column_descriptions", [{}])[0].values() or "connections" in str(stmt):
+            return None
+        return orig_scalar(stmt, *args, **kwargs)
+
+    monkeypatch.setattr(db_session, "scalar", miss_existing_conn_check)
+    res_race = client.post(
+        f"/api/v1/connections/{u1_id}",
+        headers={"Authorization": f"Bearer {token2}"},
+    )
+    monkeypatch.setattr(db_session, "scalar", orig_scalar)
+
+    assert res_race.status_code == 409
+    assert "already exists" in res_race.json()["detail"]
+
+
+
 

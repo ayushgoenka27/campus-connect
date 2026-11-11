@@ -1,7 +1,7 @@
 # Campus Connect — Testing Report
 
 **Version:** 1.0  
-**Last Updated:** 2026-11-11
+**Last Updated:** 2026-11-11 (Phase 3 + SRS remediation complete)
 
 ---
 
@@ -9,15 +9,16 @@
 
 | Metric | Value |
 |--------|-------|
-| Backend automated tests | 6 suites (covering 35+ assertions across Auth, Profiles, Listings, Lifecycle, Rejection/Cancel) |
-| Tests executed | 6 |
-| Tests passing | 6 (100%) |
-| Tests failing | 0 |
+| Backend API & DB tests (`pytest`) | 20 suites (8 in `test_api.py` + 12 in `test_community.py`, SQLite in-memory) |
+| Backend tests passing | 20 / 20 (100%) in 3.85s |
+| Frontend component tests (`Vitest + RTL`) | 6 suites (`Community.test.jsx` 4 + `Connections.test.jsx` 2, `jsdom` + mocked API) |
+| Frontend tests passing | 6 / 6 (100%) in 5.09s |
 | Frontend ESLint status | Clean (0 errors, 0 warnings) |
-| Frontend production build | Clean (`npm run build` in 747ms) |
-| PostgreSQL database connection | Verified (`campus_connect` on localhost:5432) |
-| Alembic migration status | Up-to-date (`1b3551e71d96`) |
-| Two-account E2E scenario | 8/8 lifecycle steps verified (Priya Sharma & Rahul Verma) |
+| Frontend production build | Clean (`npm run build` in 713ms, 1,893 modules) |
+| Isolated DB migration tests (`Alembic`) | Passed (`upgrade head` -> `downgrade` -> `upgrade head` on temp PostgreSQL DB `campus_connect_mig_test` up to `0046fc91e8d6`) |
+| PostgreSQL dev database connection | Verified (`campus_connect` on localhost:5432, head `0046fc91e8d6`, 6 users / 2 connections / 0 posts intact) |
+| Live Browser UI E2E (`Playwright + Chrome`) | 15 / 15 passed against live FastAPI + PostgreSQL + Vite (`Console errors: []`, `HTTP >= 400: []`) |
+| Two-account API simulation | 8/8 lifecycle steps verified via `TestClient` / Python HTTP (separate from browser E2E) |
 
 ---
 
@@ -32,15 +33,69 @@ Executed command: `pytest tests/ -v`
 | `test_user_profile_operations` | `GET /users/me` profile retrieval, `PATCH /users/me` profile updating (bio, course, branch, year), `GET /users` active student listing, query search filtering (`?search=Bob`), public profile `GET /users/{id}`, `connection_status` field validation | ✅ PASSED | 0.09s |
 | `test_connection_status_in_user_listings` | P2-01: Connection status computation relative to viewer: `null` when unconnected, `pending_sent` for sender, `pending_received` for recipient, `accepted` once confirmed, public profile status mapping | ✅ PASSED | 0.25s |
 | `test_connection_management_lifecycle` | Self-connection prevention (400), sending request (`POST /connections/{id}`), duplicate request prevention (409), sent requests filter verification (`GET /sent`), incoming request inbox (`GET /requests`), sender unauthorized accept prevention (403), receiver request accept (`PATCH /connections/{id}?action=accepted`), accepted connections list for both peers (`GET /accepted`), connection deletion (`DELETE /connections/{id}`) | ✅ PASSED | 0.28s |
-| `test_reject_and_cancel_connection_request` | P2-05 & P2-06: Outgoing request cancellation (`DELETE /connections/{id}`), sender rejection prevention (403), receiver rejection (`PATCH ?action=rejected`), guard against acting on non-pending connections (400) | ✅ PASSED | 0.35s |
+| `test_reject_and_cancel_connection_request` | P2-05 & P2-06: Outgoing request cancellation (`DELETE /connections/{id}`), sender rejection prevention (403), receiver rejection (`PATCH ?action=rejected`), guard against acting on non-pending connections (400), fresh re-request after rejection in both directions (201), bidirectional duplicate prevention (409), and absence of peer `email` in connection lists | ✅ PASSED | — |
+| `test_concurrent_duplicate_connection_integrity_error` | Concurrent race safeguard: simulated `IntegrityError` on `commit()` calls `rollback()` once and returns HTTP 409 instead of 500 | ✅ PASSED | — |
+| `test_opposite_direction_db_unique_index_blocks_concurrent_race` | Simultaneous opposite-direction DB guard: direct insert `(B, A)` after `(A, B)` raises `IntegrityError` via `uq_connections_user_pair`, and bypassed pre-check HTTP race rolls back and returns HTTP 409 | ✅ PASSED | — |
+| `test_post_create_list_get` | P3-06: Create post (201), verify author/like_count/is_liked, list posts with total, get single post, 404 on missing | ✅ PASSED | — |
+| `test_post_update_and_delete_own` | P3-13: Edit own post content (200), verify updated text, delete own post (200), confirm 404 afterward | ✅ PASSED | — |
+| `test_post_authorization_enforcement` | P3-13: 403 on edit/delete by non-author | ✅ PASSED | — |
+| `test_post_validation` | P3-05: Empty content (422), content > 2000 chars (422) | ✅ PASSED | — |
+| `test_like_toggle` | P3-08: Like post (liked=true, count=1), verify is_liked in GET, unlike (liked=false, count=0) | ✅ PASSED | — |
+| `test_comment_add_list_delete` | P3-07/12: Add comment (201), second commenter, list (total=2), 403 on cross-delete, delete own (200), list (total=1) | ✅ PASSED | — |
+| `test_comment_validation` | P3-05: Empty comment (422), comment > 500 chars (422) | ✅ PASSED | — |
+| `test_post_delete_cascades_comments_and_likes` | P3-06: Delete post, verify comments endpoint returns 404 (cascade) | ✅ PASSED | — |
+| `test_post_pagination` | P3-06: Create 5 posts, verify limit=3 returns 3, skip=3 returns remaining, total >= 5 | ✅ PASSED | — |
+| `test_post_keyword_search` | FR-COMM-4: Case-insensitive keyword filter (`?search=`), pagination total under search, empty match handling | ✅ PASSED | — |
+| `test_post_optional_image_url` | FR-COMM-1: Optional `image_url` persistence, blank normalization to `None`, invalid scheme/URL rejection (422), edit & clear | ✅ PASSED | — |
+| `test_list_posts_uses_batched_queries` | NFR-5: SQLAlchemy query listener verifies 10 posts with likes/comments execute in `<= 8` queries total (batched aggregates, no N+1) | ✅ PASSED | — |
 
-**Total:** 6 passed in 1.30s (100% pass rate).
+**Total:** 20 passed in 3.85s (100% pass rate, SQLite in-memory test DB).
 
 ---
 
-## Two-Account End-to-End Simulation Results
+## Live Browser End-to-End UI Tests (Playwright + Chrome + Live PostgreSQL)
 
-Simulated student accounts: **Priya Sharma** (`priya_s`) and **Rahul Verma** (`rahul_v`).
+Executed against running FastAPI (`http://127.0.0.1:8000` connected to live PostgreSQL `campus_connect`) and Vite (`http://127.0.0.1:5173`) using real headless Chrome (`playwright`, `channel="chrome"`) with two newly registered accounts (`e2e_alpha@campus.edu` and `e2e_beta@campus.edu`, cleaned up after execution while preserving original dev records):
+
+| Check | Workflow Verified in Chrome | Result |
+|-------|-----------------------------|--------|
+| 1 & 2 | Register Student A & B via `/register`; sign in Student A via `/login` | ✅ PASSED |
+| 3a | Community composer rejects `ftp://` image URL client-side and disables `Post` submit | ✅ PASSED |
+| 3b | Create post with valid local image URL preview (`/favicon.svg`) renders `<img>` with `naturalWidth > 0` | ✅ PASSED |
+| 3c | Create post with broken image URL (`404`) triggers graceful `Image unavailable` fallback UI | ✅ PASSED |
+| 3d | Edit own post content and clear image URL; verify updated text and `(edited)` badge | ✅ PASSED |
+| 3e | Community debounced keyword search filters feed; no-match state & `Clear search` restore full feed | ✅ PASSED |
+| 3f | Delete own post (confirm dialog) removes post from UI and PostgreSQL | ✅ PASSED |
+| 4 | Sign out Student A via sidebar and sign in Student B | ✅ PASSED |
+| 5 | Student B sees peer post with zero Edit/Delete buttons, toggles Like (`1`), adds comment (`1 comment`), and deletes own comment (`0 comments`) | ✅ PASSED |
+| 6a & 6b | Student B searches Student A on Discover, sends connection request (`Request Sent`), cancels in Connections `Sent` tab | ✅ PASSED |
+| 6c & 6d | Student B re-sends; Student A clicks `Decline` in `Requests`; Student B sees `Connect` restored on Discover and sends fresh request without 409 | ✅ PASSED |
+| 6e | Student A clicks `Accept` in `Requests`, verifies peer under `Connected`, and removes accepted connection | ✅ PASSED |
+
+**Browser Summary:** `15 / 15` checks passed; application console errors: `[]`; unexpected HTTP >= 400 responses: `[]` (excluding intentional broken-image URL).
+
+---
+
+## Automated Frontend Component Tests (Vitest + React Testing Library)
+
+Executed command: `npm test` (`vitest run` in `jsdom` with mocked `api/client` and `useAuth`).
+
+| File & Test Case | Coverage / Interactions Verified | Status |
+|------------------|----------------------------------|--------|
+| `Community.test.jsx` — keyword search | Loads posts, debounces search (`?search=hackathon`), shows tailored no-match state, and clears filter cleanly | ✅ PASSED |
+| `Community.test.jsx` — post edit & auth UI | Own post shows Edit/Delete buttons; peer post hides controls; editing content and image URL sends `PATCH` | ✅ PASSED |
+| `Community.test.jsx` — image URL creation | Rejects invalid URL (`ftp://`) client-side, disables submit, accepts valid `https://` URL and posts payload | ✅ PASSED |
+| `Community.test.jsx` — fallback & retry | Retry recovers from failed `GET /posts/`; `fireEvent.error` on `<img>` renders `Image unavailable` fallback | ✅ PASSED |
+| `Connections.test.jsx` — Discover states | Renders `Connect` for `null` & `rejected` peers, `Request Sent`, `Respond to Request`, `Connected`; verifies rollback + error toast on failed `POST` | ✅ PASSED |
+| `Connections.test.jsx` — Connections actions | Verifies `Accept` (`?action=accepted`), `Decline` (`?action=rejected`), and `Cancel Request` (`DELETE`) across tabs | ✅ PASSED |
+
+**Total:** 6 passed in 5.15s (mocked HTTP boundary; not a live browser run).
+
+---
+
+## Two-Account API Simulation Results (Not Browser UI)
+
+Simulated via Python `TestClient` / HTTP calls (does **not** cover browser rendering or DOM events). Accounts: **Priya Sharma** (`priya_s`) and **Rahul Verma** (`rahul_v`).
 
 | Step | Operation | API Call | Expected Result | Actual Result |
 |------|-----------|----------|-----------------|---------------|
@@ -62,10 +117,12 @@ Direct query execution on local PostgreSQL database:
 | Component | Status | Verified Details |
 |-----------|--------|------------------|
 | Database Connection | ✅ Connected | Database: `campus_connect`, User: `postgres`, Port: `5432` |
-| Tables Present | ✅ Verified | `['alembic_version', 'connections', 'users']` |
-| Alembic Revision | ✅ Current | Head revision: `4e46a63a94f0` (all migrations applied) |
-| Existing Users Table | ✅ Verified | 2 existing student accounts preserved intact: `teststudent01` (id 1) and `ayush_test_02` (id 2) |
-| Existing Connections Table | ✅ Verified | 1 existing connection preserved intact: ID 1 (`sender_id: 1, receiver_id: 2, status: accepted`) |
+| Tables Present | ✅ Verified | `['alembic_version', 'comments', 'connections', 'likes', 'posts', 'users']` |
+| Alembic Revision | ✅ Current | Head revision: `0046fc91e8d6` (all 6 migrations applied; upgrade/downgrade verified on isolated temp PostgreSQL DB `campus_connect_mig_test`) |
+| Connections Indexes | ✅ Verified | `uq_connections_user_pair` (`LEAST`/`GREATEST`) active alongside `uq_connections_sender_receiver`; opposite-direction insert raises `IntegrityError` |
+| Existing Users Table | ✅ Verified | All 6 dev user records preserved intact (`teststudent01`..`user_beta`) |
+| Existing Connections Table | ✅ Verified | Both dev connection records preserved intact (IDs 1 and 4) |
+| Posts Table | ✅ Verified | `0` posts (schema with nullable `image_url` ready) |
 
 ---
 
@@ -73,13 +130,10 @@ Direct query execution on local PostgreSQL database:
 
 | Check | Tool / Mechanism | Result | Details |
 |-------|------------------|--------|---------|
-| ESLint Code Quality | `npm run lint` | ✅ PASSED | 0 errors, 0 warnings across all components and pages |
-| Vite Production Build | `npm run build` | ✅ PASSED | 1,889 modules transformed, built in 562ms |
-| Auth Persistence on Refresh | `AuthContext` + `localStorage` | ✅ Verified | Initial mount reads token, validates against `/users/me`, preserves session |
-| Protected Route Redirection | `<ProtectedRoute>` | ✅ Verified | Unauthenticated visitors at `/` or workspace URLs are immediately bounced to `/login` |
-| Logout Session Clearance | `logout()` | ✅ Verified | Removes token from `localStorage`, clears `user` state, immediately locks workspace |
-| Live Dashboard Data | React `useEffect` + Axios | ✅ Verified | Renders authenticated user greeting, real profile progress %, live connections & peers |
-| Navigation & Placeholders | React Router 7 + `<ComingSoon>` | ✅ Verified | All 10 sidebar links navigate correctly without dead ends or 404s |
+| ESLint Code Quality | `npm run lint` | ✅ PASSED | 0 errors, 0 warnings across all components, pages, and test files |
+| Vite Production Build | `npm run build` | ✅ PASSED | 1,893 modules transformed, built in 713ms |
+| Vitest Component Tests | `npm test` (`jsdom`) | ✅ PASSED | 6/6 component tests passed in 5.09s with mocked Axios client |
+| Live Browser UI E2E | Playwright + Chrome (`channel="chrome"`) | ✅ PASSED | 15/15 checks passed against live FastAPI + PostgreSQL + Vite (`Console errors: []`) |
 
 ---
 
@@ -141,17 +195,18 @@ Direct query execution on local PostgreSQL database:
 
 | Test ID | Test Case | Expected Result | Status |
 |---------|-----------|-----------------|--------|
-| POST-01 | Create post | 201, post created | ⬜ Not run |
-| POST-02 | Edit own post | 200, updated | ⬜ Not run |
-| POST-03 | Edit another user's post | 403 Forbidden | ⬜ Not run |
-| POST-04 | Delete own post | 204 | ⬜ Not run |
-| POST-05 | Delete another user's post | 403 Forbidden | ⬜ Not run |
-| POST-06 | Like post | 200, like count + 1 | ⬜ Not run |
-| POST-07 | Unlike post | 200, like count - 1 | ⬜ Not run |
-| POST-08 | Like own post (allow or not?) | TBD per SRS | ⬜ Not run |
-| COMM-01 | Create comment | 201, comment created | ⬜ Not run |
-| COMM-02 | Delete own comment | 204 | ⬜ Not run |
-| COMM-03 | Delete another user's comment | 403 Forbidden | ⬜ Not run |
+| POST-01 | Create post (text & optional `image_url`) | 201, post created | ✅ Verified |
+| POST-02 | Edit own post (`content` & `image_url`) | 200, updated | ✅ Verified |
+| POST-03 | Edit another user's post | 403 Forbidden | ✅ Verified |
+| POST-04 | Delete own post | 200, deletion confirmation JSON | ✅ Verified |
+| POST-05 | Delete another user's post | 403 Forbidden | ✅ Verified |
+| POST-06 | Like post | 200, `liked=true`, like count + 1 | ✅ Verified |
+| POST-07 | Unlike post | 200, `liked=false`, like count - 1 | ✅ Verified |
+| POST-08 | Like own post | Allowed by API (`liked` toggled) | ✅ Verified |
+| POST-09 | Keyword search (`?search=`) & pagination | 200, filtered `posts` & `total` | ✅ Verified |
+| COMM-01 | Create comment | 201, comment created | ✅ Verified |
+| COMM-02 | Delete own comment | 200, deletion confirmation JSON | ✅ Verified |
+| COMM-03 | Delete another user's comment | 403 Forbidden | ✅ Verified |
 
 ### Module: Announcements (Phase 4)
 

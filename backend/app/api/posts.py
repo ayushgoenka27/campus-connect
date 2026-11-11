@@ -1,6 +1,6 @@
 """
 Posts API — Community Module (Phase 3)
-Handles: Posts (CRUD), Comments (add/list/delete), Likes (toggle)
+Handles: Posts (CRUD + keyword search + batched aggregates), Comments (add/list/delete), Likes (toggle)
 """
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
@@ -31,39 +31,65 @@ router = APIRouter(prefix="/posts", tags=["Community"])
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _build_post_response(post: Post, current_user_id: int, db: Session) -> PostResponse:
-    """Construct a PostResponse from a Post ORM object."""
-    like_count = db.scalar(
-        select(func.count()).where(Like.post_id == post.id)
-    ) or 0
-    comment_count = db.scalar(
-        select(func.count()).where(Comment.post_id == post.id)
-    ) or 0
-    is_liked = db.scalar(
-        select(Like.id).where(
-            Like.post_id == post.id, Like.user_id == current_user_id
+def _serialize_author(author: User) -> PostAuthorInfo:
+    return PostAuthorInfo(
+        id=author.id,
+        full_name=author.full_name,
+        username=author.username,
+        profile_image=author.profile_image,
+        course=author.course,
+        branch=author.branch,
+    )
+
+
+def _build_post_responses(
+    posts: list[Post], current_user_id: int, db: Session
+) -> list[PostResponse]:
+    """Construct PostResponse items using batched aggregate queries (no N+1)."""
+    if not posts:
+        return []
+
+    post_ids = [post.id for post in posts]
+
+    like_counts = dict(
+        db.execute(
+            select(Like.post_id, func.count(Like.id))
+            .where(Like.post_id.in_(post_ids))
+            .group_by(Like.post_id)
+        ).all()
+    )
+
+    comment_counts = dict(
+        db.execute(
+            select(Comment.post_id, func.count(Comment.id))
+            .where(Comment.post_id.in_(post_ids))
+            .group_by(Comment.post_id)
+        ).all()
+    )
+
+    liked_post_ids = set(
+        db.scalars(
+            select(Like.post_id).where(
+                Like.post_id.in_(post_ids),
+                Like.user_id == current_user_id,
+            )
+        ).all()
+    )
+
+    return [
+        PostResponse(
+            id=post.id,
+            content=post.content,
+            image_url=post.image_url,
+            author=_serialize_author(post.author),
+            like_count=like_counts.get(post.id, 0),
+            comment_count=comment_counts.get(post.id, 0),
+            is_liked=post.id in liked_post_ids,
+            created_at=post.created_at,
+            updated_at=post.updated_at,
         )
-    ) is not None
-
-    author_info = PostAuthorInfo(
-        id=post.author.id,
-        full_name=post.author.full_name,
-        username=post.author.username,
-        profile_image=post.author.profile_image,
-        course=post.author.course,
-        branch=post.author.branch,
-    )
-
-    return PostResponse(
-        id=post.id,
-        content=post.content,
-        author=author_info,
-        like_count=like_count,
-        comment_count=comment_count,
-        is_liked=is_liked,
-        created_at=post.created_at,
-        updated_at=post.updated_at,
-    )
+        for post in posts
+    ]
 
 
 def _get_post_or_404(post_id: int, db: Session) -> Post:
@@ -90,42 +116,57 @@ def create_post(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> PostResponse:
-    post = Post(author_id=current_user.id, content=body.content.strip())
+    post = Post(
+        author_id=current_user.id,
+        content=body.content,
+        image_url=body.image_url,
+    )
     db.add(post)
     db.commit()
     db.refresh(post)
-    # Reload with author relationship
     post = _get_post_or_404(post.id, db)
-    return _build_post_response(post, current_user.id, db)
+    return _build_post_responses([post], current_user.id, db)[0]
 
 
 # ---------------------------------------------------------------------------
-# GET /posts — List posts (paginated, most recent first)
+# GET /posts — List posts (paginated, keyword-searchable, newest first)
 # ---------------------------------------------------------------------------
 
 @router.get(
     "/",
     response_model=PostListResponse,
-    summary="List community posts (paginated, newest first)",
+    summary="List community posts (paginated, keyword searchable, newest first)",
 )
 def list_posts(
+    search: str | None = Query(default=None, max_length=200),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> PostListResponse:
-    total = db.scalar(select(func.count()).select_from(Post)) or 0
+    search_term = search.strip() if search else None
 
-    posts = db.scalars(
-        select(Post)
-        .options(joinedload(Post.author))
-        .order_by(Post.created_at.desc())
-        .offset(skip)
-        .limit(limit)
-    ).all()
+    count_stmt = select(func.count()).select_from(Post)
+    posts_stmt = select(Post).options(joinedload(Post.author))
+
+    if search_term:
+        pattern = f"%{search_term}%"
+        count_stmt = count_stmt.where(Post.content.ilike(pattern))
+        posts_stmt = posts_stmt.where(Post.content.ilike(pattern))
+
+    total = db.scalar(count_stmt) or 0
+
+    posts = list(
+        db.scalars(
+            posts_stmt
+            .order_by(Post.created_at.desc(), Post.id.desc())
+            .offset(skip)
+            .limit(limit)
+        ).all()
+    )
 
     return PostListResponse(
-        posts=[_build_post_response(p, current_user.id, db) for p in posts],
+        posts=_build_post_responses(posts, current_user.id, db),
         total=total,
     )
 
@@ -145,7 +186,7 @@ def get_post(
     db: Session = Depends(get_db),
 ) -> PostResponse:
     post = _get_post_or_404(post_id, db)
-    return _build_post_response(post, current_user.id, db)
+    return _build_post_responses([post], current_user.id, db)[0]
 
 
 # ---------------------------------------------------------------------------
@@ -169,11 +210,16 @@ def update_post(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can only edit your own posts",
         )
-    post.content = body.content.strip()
+
+    if "content" in body.model_fields_set and body.content is not None:
+        post.content = body.content
+    if "image_url" in body.model_fields_set:
+        post.image_url = body.image_url
+
     db.commit()
     db.refresh(post)
     post = _get_post_or_404(post.id, db)
-    return _build_post_response(post, current_user.id, db)
+    return _build_post_responses([post], current_user.id, db)[0]
 
 
 # ---------------------------------------------------------------------------
@@ -216,7 +262,6 @@ def add_comment(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> CommentResponse:
-    # Verify post exists
     _get_post_or_404(post_id, db)
 
     comment = Comment(
@@ -228,7 +273,6 @@ def add_comment(
     db.commit()
     db.refresh(comment)
 
-    # Load with author
     comment = db.scalar(
         select(Comment)
         .options(joinedload(Comment.author))
@@ -239,14 +283,7 @@ def add_comment(
         id=comment.id,
         post_id=comment.post_id,
         content=comment.content,
-        author=PostAuthorInfo(
-            id=comment.author.id,
-            full_name=comment.author.full_name,
-            username=comment.author.username,
-            profile_image=comment.author.profile_image,
-            course=comment.author.course,
-            branch=comment.author.branch,
-        ),
+        author=_serialize_author(comment.author),
         created_at=comment.created_at,
     )
 
@@ -288,14 +325,7 @@ def list_comments(
                 id=c.id,
                 post_id=c.post_id,
                 content=c.content,
-                author=PostAuthorInfo(
-                    id=c.author.id,
-                    full_name=c.author.full_name,
-                    username=c.author.username,
-                    profile_image=c.author.profile_image,
-                    course=c.author.course,
-                    branch=c.author.branch,
-                ),
+                author=_serialize_author(c.author),
                 created_at=c.created_at,
             )
             for c in comments

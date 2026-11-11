@@ -15,6 +15,43 @@ Format:
 
 ---
 
+## [2026-11-11] — Phase 3 Community Module & SRS Remediation
+
+### Added
+- `backend/app/models/post.py`, `comment.py`, `like.py` — Community ORM models (`posts` with nullable `image_url`, `comments` with `CASCADE` delete, `likes` with `UniqueConstraint("post_id", "user_id", name="uq_likes_post_user")`).
+- `backend/migrations/versions/abd8d6ee3c59_add_community_posts_comments_likes.py` — Initial community schema migration (`posts`, `comments`, `likes` + indexes).
+- `backend/migrations/versions/115f1d3a947f_add_image_url_to_posts.py` — Non-destructive migration adding nullable `image_url` (`String(500)`) to `posts` (`FR-COMM-1`).
+- `backend/migrations/versions/0046fc91e8d6_add_bidirectional_connection_unique_.py` — Non-destructive migration adding direction-independent functional unique index `uq_connections_user_pair` (`LEAST(sender_id, receiver_id), GREATEST(sender_id, receiver_id)`) on `connections` to prevent simultaneous opposite-direction races (`A -> B` and `B -> A`).
+- `backend/app/models/connection.py` — Added `uq_connections_user_pair` expression unique index (PostgreSQL `LEAST`/`GREATEST`, SQLite `min`/`max`) preserving bidirectional duplicate protection at the DB level.
+- `backend/app/schemas/post.py` — Pydantic v2 schemas for posts, comments, likes, with `http://`/`https://` validation and blank normalization on `image_url`.
+- `backend/app/api/posts.py` — Full Community REST API (`/api/v1/posts`) with reverse-chronological feed, pagination (`skip`/`limit`), keyword search (`?search=` for `FR-COMM-4`), batched aggregate queries (`like_count`, `comment_count`, `is_liked`), post CRUD, comment add/list/delete, and idempotent like toggle.
+- `frontend/src/pages/Community.jsx` — Community feed page with debounced keyword search bar (`FR-COMM-4`), post composer with optional `image_url` input/validation/preview, image rendering with `onError` graceful fallback, optimistic like toggle, inline post edit/delete, expandable comment threads, pagination, skeletons, and error retry state.
+- `backend/tests/test_community.py` — 12 backend tests covering post CRUD, authorization (`403`), validation (`422`), like toggle, comments, cascade deletes, pagination, keyword search, optional `image_url`, and bounded batched query count (`<= 8` queries for 10 posts).
+- `frontend/src/tests/setup.js`, `Community.test.jsx`, `Connections.test.jsx` — Vitest + React Testing Library test setup and 6 frontend component tests covering Community search, image URL validation/creation/editing, broken-image fallback, and Discover/Connections states & rollback.
+
+### Fixed / Changed
+- `backend/app/api/connections.py`:
+  - Allowed fresh connection requests after a previous `"rejected"` connection by deleting the rejected record before inserting the new `"pending"` request (while preserving bidirectional duplicate prevention with HTTP `409` for `"pending"` and `"accepted"`).
+  - Caught `IntegrityError` on `db.commit()` in `send_connection_request`, rolling back the session and returning HTTP `409` instead of `500` on concurrent duplicate inserts.
+  - Removed peer `email` addresses from `/connections/accepted`, `/connections/requests`, and `/connections/sent` payloads via shared `_serialize_connection_user`.
+- `backend/app/main.py` — Mounted `posts_router` under `/api/v1`.
+- `frontend/src/App.jsx` — Mounted `<Community />` at `/community`.
+- `frontend/package.json` & `frontend/vite.config.js` — Added Vitest dev dependencies and configured `jsdom` test runner (`npm test`).
+
+### Database Changes
+- Applied `abd8d6ee3c59`, `115f1d3a947f`, and `0046fc91e8d6` on PostgreSQL `campus_connect`.
+- Verified full migration chain `upgrade head` -> `downgrade` -> `upgrade head` non-destructively on isolated temporary PostgreSQL test database (`campus_connect_mig_test`), confirming existing post/connection rows survive downgrade/upgrade and `uq_connections_user_pair` blocks opposite-direction `(B, A)` inserts with `IntegrityError`.
+- Verified existing dev PostgreSQL records remain intact (`6` users, `2` connections, `0` posts).
+
+### Tests Executed
+- Backend API & DB `pytest tests/ -v`: **20/20 passed** (`8` in `test_api.py`, `12` in `test_community.py`, `3.85s`) against SQLite in-memory test DB.
+- Frontend `npm test` (Vitest + RTL): **6/6 passed** (`4` in `Community.test.jsx`, `2` in `Connections.test.jsx`, `5.09s`, mocked API client in `jsdom`).
+- Frontend `npm run lint`: **0 errors, 0 warnings**.
+- Frontend `npm run build`: **built in 713ms** (`1,893` modules).
+- Live Browser E2E (`Playwright` + headless Google Chrome against live FastAPI + PostgreSQL + Vite): **15/15 browser checks passed** across 2 student accounts (`Console errors: []`, unexpected `HTTP >= 400: []`).
+
+---
+
 ## [2026-11-11] — Phase 2 Connections Management Complete
 
 ### Added

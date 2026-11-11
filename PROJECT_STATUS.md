@@ -2,32 +2,34 @@
 
 **Audit Date:** 2026-11-11  
 **Auditor:** Principal Architect / AI Engineering Lead  
-**Current Phase:** Phase 2 Complete — Ready for Phase 3 Approval
+**Current Phase:** Phase 3 Complete (SRS Remediated) — Ready for Phase 4 Approval
 
 ---
 
 ## 1. Project Overview
 
-Campus Connect is a full-stack web platform designed to connect students and campus communities. It is intended to provide authentication, student profiles, connections, community posts, announcements, real-time messaging, notifications, and campus resource management.
+Campus Connect is a full-stack web platform designed to connect students and campus communities. It provides authentication, student profiles, connections, community posts/comments/likes/search, and is planned to support announcements, real-time messaging, notifications, and campus resource management.
 
 **Repository layout:**
 ```
 Campus Connect/
 ├── backend/           FastAPI + SQLAlchemy + Alembic
 │   ├── app/
-│   │   ├── api/       auth.py, users.py, connections.py
+│   │   ├── api/       auth.py, users.py, connections.py, posts.py
 │   │   ├── core/      config.py, security.py, dependencies.py
 │   │   ├── db/        database.py, dependencies.py
-│   │   ├── models/    user.py, connection.py, base.py
-│   │   ├── schemas/   auth.py, user.py
-│   │   ├── services/  (empty — no service layer yet)
+│   │   ├── models/    user.py, connection.py, post.py, comment.py, like.py, base.py
+│   │   ├── schemas/   auth.py, user.py, post.py
+│   │   ├── services/  (empty — helper serialization currently sits in routers)
 │   │   └── main.py
-│   ├── migrations/    3 Alembic revisions
-│   └── main.py        (duplicate of app/main.py)
-├── frontend/          React 19 + Vite 8 + Tailwind CSS 4
+│   ├── migrations/    6 Alembic revisions (head: 0046fc91e8d6)
+│   ├── tests/         test_api.py (8 suites), test_community.py (12 suites)
+│   └── main.py        (re-exports app.main:app)
+├── frontend/          React 19 + Vite 8 + Tailwind CSS 4 + Vitest
 │   └── src/
 │       ├── api/       client.js (Axios)
-│       ├── pages/     Login.jsx, Register.jsx, Dashboard.jsx, Profile.jsx, Discover.jsx, Connections.jsx
+│       ├── pages/     Login.jsx, Register.jsx, Dashboard.jsx, Profile.jsx, Discover.jsx, Connections.jsx, Community.jsx
+│       ├── tests/     setup.js, Community.test.jsx, Connections.test.jsx
 │       └── App.jsx    (routing & providers)
 ├── campus_connect_proposal.pdf
 ├── campus_connect_srs.pdf
@@ -81,20 +83,31 @@ Campus Connect/
 - ✅ `GET /` — List active users with search, course/branch/year filtering, pagination (`skip`/`limit`), and dynamic `connection_status` computation
 
 #### Connections (`/api/v1/connections`)
-- ✅ `POST /{user_id}` — Send connection request (self-connect prevented, duplicate checked, status initialized to pending)
+- ✅ `POST /{user_id}` — Send connection request (self-connect prevented, bidirectional duplicate checked, rejected requests allow fresh re-request, `IntegrityError` caught and rolled back as 409)
 - ✅ `GET /` — All connections (sent + received, all statuses)
 - ✅ `PATCH /{connection_id}?action=` — Accept or reject pending requests (receiver-only, non-pending rejection guarded)
-- ✅ `GET /accepted` — Accepted connections eager-loaded with SQL JOIN (`joinedload`)
-- ✅ `GET /requests` — Incoming pending requests eager-loaded with SQL JOIN (`joinedload`)
-- ✅ `GET /sent` — Outgoing pending requests eager-loaded with SQL JOIN (`joinedload`)
+- ✅ `GET /accepted` — Accepted connections eager-loaded with `joinedload` (peer email excluded)
+- ✅ `GET /requests` — Incoming pending requests eager-loaded with `joinedload` (peer email excluded)
+- ✅ `GET /sent` — Outgoing pending requests eager-loaded with `joinedload` (peer email excluded)
 - ✅ `DELETE /{connection_id}` — Remove a connection or cancel an outgoing request (sender or receiver)
+
+#### Community (`/api/v1/posts`)
+- ✅ `POST /` — Create post with text + optional validated `image_url` (`http://`/`https://`)
+- ✅ `GET /` — Reverse-chronological paginated feed with `?search=` keyword filter (`FR-COMM-4`) and batched aggregate queries (`like_count`, `comment_count`, `is_liked`)
+- ✅ `GET /{post_id}` — Retrieve single post detail
+- ✅ `PATCH /{post_id}` — Author-only post content and `image_url` update (`403` for non-authors)
+- ✅ `DELETE /{post_id}` — Author-only post deletion with cascade delete of comments & likes (`403` for non-authors)
+- ✅ `POST /{post_id}/comments`, `GET /{post_id}/comments`, `DELETE /comments/{comment_id}` — Comment creation, chronological listing, author-only deletion
+- ✅ `POST /{post_id}/like` — Idempotent like/unlike toggle backed by `uq_likes_post_user`
 
 #### Database
 - ✅ `users` table — Full schema
-- ✅ `connections` table — sender_id FK, receiver_id FK, status, timestamps
-- ✅ Composite unique constraint `uq_connections_sender_receiver` on `connections(sender_id, receiver_id)`
-- ✅ 3 Alembic migrations applied up to `1b3551e71d96`
-- ✅ Indexes on id, email, username, sender_id, receiver_id
+- ✅ `connections` table — sender_id FK, receiver_id FK, status, timestamps, composite unique constraint `uq_connections_sender_receiver`, bidirectional expression unique index `uq_connections_user_pair` (`LEAST(sender_id, receiver_id), GREATEST(sender_id, receiver_id)`)
+- ✅ `posts` table — author_id FK (`CASCADE`), content, nullable `image_url`, timestamps
+- ✅ `comments` table — post_id FK (`CASCADE`), author_id FK (`CASCADE`), content, created_at
+- ✅ `likes` table — post_id FK (`CASCADE`), user_id FK (`CASCADE`), composite unique constraint `uq_likes_post_user`
+- ✅ 6 Alembic migrations applied up to `0046fc91e8d6`
+- ✅ Indexes on id, email, username, sender_id, receiver_id, post_id, author_id, user_id
 
 ### Frontend — Verified Present
 - ✅ Login page — Correctly sends `email` & `password`, integrates with `AuthContext`
@@ -104,9 +117,10 @@ Campus Connect/
 - ✅ Shared AppLayout — Responsive sidebar, topbar, user profile pill, and functional logout button
 - ✅ Dashboard — Connected to live backend (`/api/v1/users/me`, `/api/v1/connections`, `/api/v1/users`), calculates real connection metrics, real profile completion %, live discover suggestions with functional connect requests and interactive stat cards
 - ✅ Profile Page — Dedicated `Profile.jsx` with complete view and edit modes, instant preview, degree/branch/year/bio editing, and global state sync via `refreshUser()`
-- ✅ Discover Page — Dedicated `Discover.jsx` with live debounced search, course/branch/year filter dropdowns, student cards with all connection states (Connect, Request Sent, Respond to Request, Connected), optimistic updates with rollback, and loading skeletons
+- ✅ Discover Page — Dedicated `Discover.jsx` with live debounced search, course/branch/year filter dropdowns, student cards with all connection states (Connect including after rejection, Request Sent, Respond to Request, Connected), optimistic updates with rollback, and loading skeletons
 - ✅ Connections Page — Dedicated `Connections.jsx` with 3 active tabs (Connected, Requests, Sent), badge counts, Accept/Decline incoming requests, Cancel outgoing requests, Remove accepted connection, optimistic updates with rollback, and inline search
-- ✅ Placeholder Views — `ComingSoon` component wired to pending Phase 3–6 workspace routes preventing dead links
+- ✅ Community Page — Dedicated `Community.jsx` with debounced keyword search bar, post composer with optional `image_url` input/validation/preview, image rendering with `onError` graceful fallback, optimistic like toggle, inline post edit/delete for authors, expandable comment threads, pagination, loading skeletons, and error retry
+- ✅ Placeholder Views — `ComingSoon` component wired to pending Phase 4–6 workspace routes preventing dead links
 
 ---
 
@@ -140,11 +154,22 @@ Campus Connect/
 - ✅ **Dedicated Discover page:** Created `frontend/src/pages/Discover.jsx` with live debounced search, course/branch/year filters, student cards with all connection states, optimistic updates with rollback, and loading skeletons (P2-02).
 - ✅ **Dedicated Connections page:** Created `frontend/src/pages/Connections.jsx` with Connected, Requests, and Sent tabs, badge counts, Accept/Decline, Cancel sent, Remove connection, and optimistic rollback (P2-03 to P2-07).
 
-### Remaining Issues (Scheduled for Phase 3+):
+### Remaining SRS Discrepancies & Outstanding Requirements (Mapped to Phases):
+| SRS Req / Area | Current Behavior | Target Phase |
+|----------------|------------------|--------------|
+| `FR-AUTH-3` & `FR-AUTH-5` (Refresh token & logout revocation) | Single 60-min JWT access token only; logout clears `localStorage` client-side without server-side revocation | Phase 7 (Security & Auth Hardening) |
+| `FR-AUTH-1` (Institutional email domain enforcement) | `RegisterRequest` accepts any valid `EmailStr` | Phase 4 / Phase 7 (configurable domain allowlist) |
+| Role naming (`"administrator"` vs `"admin"`) | `get_current_admin` checks `current_user.role != "admin"`; SRS specifies `"administrator"` | Phase 4 (standardize before Admin UI & Announcements) |
+| `FR-ADM-5` (Post/comment reporting & moderation queue) | Not implemented in Phase 3 | Phase 4 (`Admin & Moderation`) |
+| Standalone `Post Detail` screen (SRS 6.1) | Comments render inline inside expandable `PostCard` drawer; `GET /posts/{id}` exists in API | Optional enhancement / Phase 7 |
+| SRS 5.3 UI/client stack (TypeScript, shadcn/ui, TanStack Query) | Implemented in React JS + custom Tailwind CSS v4 + Axios | Accepted foundation divergence |
+
+### Remaining Issues & Known Limitations:
 | Issue | Severity | Location | Detail |
 |-------|----------|----------|--------|
 | Weak JWT secret | 🟡 Medium | `.env` | Must use generated 32+ char secret in production deployment |
-| Services directory empty | 🟡 Low | `app/services/` | Business logic separation starting in Phase 3 |
+| Services directory empty | 🟡 Low | `app/services/` | Serialization/batch helpers currently reside in router modules |
+| Standalone rate limiting missing | 🟡 Note | `auth.py` | No rate limiting yet on `/auth/login` or `/auth/register` |
 
 ---
 
@@ -152,18 +177,19 @@ Campus Connect/
 
 | Module | Required Features | Status |
 |--------|-------------------|--------|
-| D — Community | Posts, likes, comments, search, pagination | ❌ Not started (Phase 3) |
+| D — Community | Posts, optional `image_url`, likes, comments, keyword search, pagination | ✅ Complete (Phase 3 + SRS remediation) |
 | E — Announcements | Admin CRUD, student view, categories, publish/unpublish | ❌ Not started (Phase 4) |
 | F — Messaging | WebSocket real-time DMs, conversation list, message history | ❌ Not started (Phase 5) |
 | G — Notifications | Connection, message, announcement notifications | ❌ Not started (Phase 6) |
 | H — Campus Resources | Academic resources, events, placement info | ❌ Not started (Phase 6) |
-| Admin dashboard | Role-based admin panel | ❌ Not started (Phase 4) |
-| Profile image upload | File upload endpoint | ❌ Not started (Phase 6/7) |
+| Admin dashboard | Role-based admin panel & content moderation | ❌ Not started (Phase 4) |
+| Profile/Post file uploads | Direct Cloudinary / multipart upload (URL strings used currently) | ❌ Not started (Phase 6/7) |
 | Connections page (frontend) | Manage connections, requests, discover students | ✅ Complete (Phase 2) |
 | Profile page (frontend) | View/edit profile | ✅ Complete (Phase 1) |
 | Health check endpoint | `GET /health` | ✅ Complete (Phase 1) |
-| Tests (backend) | pytest suite | ✅ 6 suites passing |
-| Tests (frontend) | Vitest component tests | ❌ Not started (Phase 7) |
+| Tests (backend) | pytest suite | ✅ 20 suites passing |
+| Tests (frontend) | Vitest + RTL component tests | ✅ 6 suites passing (Phase 3 remediation) |
+| Browser UI E2E | Live Chrome + PostgreSQL via Playwright | ✅ 15/15 browser checks passed |
 | Docker | Dockerfile + docker-compose | ❌ Not started (Phase 7) |
 | .env.example | Placeholder values | ✅ Complete (Phase 0) |
 
@@ -171,10 +197,11 @@ Campus Connect/
 
 ## 7. Known Technical Debt
 
-1. No service layer — business logic lives in route handlers (scheduled for Phase 3)
+1. No `app/services/` layer — business logic lives in route handlers / helpers
 2. CORS whitelist only hardcodes localhost ports
 3. Weak JWT secret placeholder in local dev environment
 4. Starlette testclient httpx deprecation warning (to be updated to httpx2 in Phase 7)
+5. Refresh tokens, server-side logout invalidation, and institutional email domain rules queued for hardening
 
 ---
 
@@ -187,6 +214,8 @@ Campus Connect/
 | Route guard on frontend | ✅ Resolved | Protected by `ProtectedRoute`, unauthenticated requests redirected |
 | `.env` is in `.gitignore` | ✅ Good | Credentials won't be committed; `.env.example` provided |
 | `password_hash` not returned in any API response | ✅ Good | Correctly hidden across all endpoints |
+| Peer `email` hidden in profiles & connection lists | ✅ Improved | Removed from `/connections/accepted`, `/requests`, and `/sent` payloads |
+| Image URL scheme validation | ✅ Good | Enforces `http://`/`https://` and rejects `javascript:` or malformed schemes |
 | Password validation | ✅ Strengthened | Enforced minimum 8 characters in `schemas/auth.py` |
 | No rate limiting | 🟡 Note | Recommended for production on `/auth/login` and `/auth/register` |
 
@@ -196,19 +225,23 @@ Campus Connect/
 
 | Area | Tests Present | Executed | Status |
 |------|--------------|----------|--------|
-| Backend API (pytest + httpx) | 6 comprehensive suites | 6 executed | ✅ 6/6 Passed in 1.30s |
+| Backend API (`pytest`) | 20 tests (`test_api.py` 8 + `test_community.py` 12) | 20 executed | ✅ 20/20 Passed in 3.85s (SQLite in-memory) |
+| Frontend Component Tests (`Vitest + RTL`) | 6 tests (`Community.test.jsx` 4 + `Connections.test.jsx` 2) | 6 executed | ✅ 6/6 Passed in 5.09s (mocked API in `jsdom`) |
 | Frontend Code Quality (ESLint) | Project-wide | Executed | ✅ 0 errors, 0 warnings |
-| Frontend Production Build (Vite) | Full bundling | Executed | ✅ Built in 747ms |
+| Frontend Production Build (Vite) | Full bundling | Executed | ✅ Built in 713ms (`1,893` modules) |
+| Isolated Migration Check (`Alembic`) | `08e11984b53b` -> `0046fc91e8d6` + downgrade | Executed | ✅ Passed on temp DB (`campus_connect_mig_test`) |
+| Live Browser UI E2E (Playwright + Chrome) | Full Community & Connections flows (2 accounts) | 15 executed | ✅ 15/15 Passed against live PostgreSQL (`Console errors: []`, `HTTP >= 400: []`) |
 | PostgreSQL Connectivity | Live check | Executed | ✅ Connected to `campus_connect` |
-| Two-Account E2E Simulation | Full connection lifecycle | Executed | ✅ 8/8 actions verified |
+| Two-Account API Simulation | Connection lifecycle | Executed | ✅ 8/8 API actions verified (`TestClient`) |
 
 ---
 
 ## 10. Database Status
 
 - PostgreSQL connected and active on `localhost:5432`, database `campus_connect`
-- Alembic migration revision: `4e46a63a94f0` (head, up-to-date)
-- Tables present: `alembic_version`, `users`, `connections`
-- Existing data preserved: 2 student accounts (`teststudent01`, `ayush_test_02`), 1 connection
-- **Missing tables (Phase 3–6):** posts, comments, likes, messages, conversations, notifications, announcements, resources, events
+- Alembic migration revision: `0046fc91e8d6` (head, up-to-date)
+- Tables present: `alembic_version`, `users`, `connections`, `posts`, `comments`, `likes`
+- Connections indexes: `ix_connections_id`, `ix_connections_receiver_id`, `ix_connections_sender_id`, `uq_connections_sender_receiver`, `uq_connections_user_pair`
+- Existing data preserved: 6 user accounts (`teststudent01`..`user_beta`), 2 connections (IDs 1 and 4), 0 posts
+- **Missing tables (Phase 4–6):** announcements, messages, conversations, notifications, resources, events, reports
 

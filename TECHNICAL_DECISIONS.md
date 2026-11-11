@@ -123,3 +123,44 @@
 **Rationale:** TestClient allows testing the full ASGI stack without starting a real server. SQLite in-memory database allows tests to run without a live PostgreSQL instance, making them portable and fast.  
 **Date:** 2026-11-11
 
+---
+
+## TD-016: Frontend Stack Deviation from SRS §5.3
+
+**Decision:** Retain the existing frontend stack (React 19 JS + Tailwind CSS v4 + Axios) instead of migrating to the SRS-recommended TypeScript + shadcn/ui + TanStack Query.
+
+| Dimension | SRS §5.3 Recommendation | Actual Choice |
+|-----------|--------------------------|---------------|
+| Language | TypeScript | JavaScript (ES2022+) |
+| Component library | shadcn/ui | Custom Tailwind CSS v4 components |
+| Data-fetching | TanStack Query | Axios + `useState`/`useEffect` |
+| UI framework | React | React 19 ✓ |
+| Styling | Tailwind CSS | Tailwind CSS v4 ✓ |
+
+**Rationale:**  
+1. **Mid-project migration cost.** Decision point arose after Phases 1–3 were fully implemented and browser-tested. Migrating every `.jsx` file to TypeScript would require touching all existing schemas without adding new user-facing value.  
+2. **Stack cohesion.** All existing pages follow one consistent pattern. Mixing TanStack Query with the existing `useState` pages would create two distinct coding styles.  
+3. **Remaining phases planned on current stack.** Phases 4–6 were scoped and estimated assuming the current stack. Switching mid-project risks delivery delays.
+
+**Trade-offs:**
+
+| Trade-off | Mitigation |
+|-----------|-----------|
+| No compile-time type safety | JSDoc comments on shared helpers; ESLint with react-hooks and import plugins |
+| No automatic cache invalidation | Optimistic UI updates with explicit rollback on API failure |
+| No pre-built accessible UI primitives | Custom components follow WCAG 2.1 AA patterns (labels, `aria-label`, keyboard nav) |
+
+**Future option:** A TypeScript migration can be done incrementally in Phase 7 using `allowJs: true` + renaming `.jsx` → `.tsx` file by file.  
+**Date:** 2026-11-11
+
+---
+
+## TD-017: Admin Role Naming — Accept Both "admin" and "administrator"
+
+**Decision:** `get_current_admin()` accepts both `"admin"` and `"administrator"` as valid admin role strings.
+
+**Context:** SRS FR-ADM-1 specifies `"administrator"`. All existing backend code uses `"admin"`. All 6 dev database accounts have `role = "student"` — no migration needed for user data.
+
+**Resolution:** Updated `get_current_admin()` to check `current_user.role not in ("admin", "administrator")`. No Alembic migration required (the `role` column is an unconstrained `String`, not an `Enum`).  
+**Date:** 2026-11-11
+

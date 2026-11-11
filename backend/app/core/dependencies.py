@@ -65,7 +65,8 @@ def get_current_user(
 def get_current_admin(
     current_user: User = Depends(get_current_user),
 ) -> User:
-    if current_user.role != "admin":
+    # Accept both "admin" (existing code) and "administrator" (SRS FR-ADM-1)
+    if current_user.role not in ("admin", "administrator"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Administrative privileges required",

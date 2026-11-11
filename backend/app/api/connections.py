@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.dependencies import get_current_user_id
@@ -12,6 +13,21 @@ router = APIRouter(
     prefix="/connections",
     tags=["Connections"],
 )
+
+
+def _serialize_connection_user(user: User) -> dict:
+    """Return public peer fields without leaking private email addresses."""
+    return {
+        "id": user.id,
+        "full_name": user.full_name,
+        "username": user.username,
+        "role": user.role,
+        "bio": user.bio,
+        "profile_image": user.profile_image,
+        "course": user.course,
+        "branch": user.branch,
+        "year": user.year,
+    }
 
 
 # Send a connection request
@@ -52,10 +68,15 @@ def send_connection_request(
     )
 
     if existing_connection:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="A connection already exists between these users",
-        )
+        if existing_connection.status == "rejected":
+            # Allow a fresh request after rejection without leaving duplicate rows.
+            db.delete(existing_connection)
+            db.flush()
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="A connection already exists between these users",
+            )
 
     connection = Connection(
         sender_id=current_user_id,
@@ -64,7 +85,14 @@ def send_connection_request(
     )
 
     db.add(connection)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A connection already exists between these users",
+        )
     db.refresh(connection)
 
     return {
@@ -195,18 +223,7 @@ def get_accepted_connections(
             result.append(
                 {
                     "connection_id": connection.id,
-                    "user": {
-                        "id": other_user.id,
-                        "full_name": other_user.full_name,
-                        "username": other_user.username,
-                        "email": other_user.email,
-                        "role": other_user.role,
-                        "bio": other_user.bio,
-                        "profile_image": other_user.profile_image,
-                        "course": other_user.course,
-                        "branch": other_user.branch,
-                        "year": other_user.year,
-                    },
+                    "user": _serialize_connection_user(other_user),
                     "status": connection.status,
                     "created_at": connection.created_at,
                     "updated_at": connection.updated_at,
@@ -234,18 +251,7 @@ def get_connection_requests(
     return [
         {
             "connection_id": connection.id,
-            "user": {
-                "id": connection.sender.id,
-                "full_name": connection.sender.full_name,
-                "username": connection.sender.username,
-                "email": connection.sender.email,
-                "role": connection.sender.role,
-                "bio": connection.sender.bio,
-                "profile_image": connection.sender.profile_image,
-                "course": connection.sender.course,
-                "branch": connection.sender.branch,
-                "year": connection.sender.year,
-            },
+            "user": _serialize_connection_user(connection.sender),
             "status": connection.status,
             "created_at": connection.created_at,
         }
@@ -272,18 +278,7 @@ def get_sent_requests(
     return [
         {
             "connection_id": connection.id,
-            "user": {
-                "id": connection.receiver.id,
-                "full_name": connection.receiver.full_name,
-                "username": connection.receiver.username,
-                "email": connection.receiver.email,
-                "role": connection.receiver.role,
-                "bio": connection.receiver.bio,
-                "profile_image": connection.receiver.profile_image,
-                "course": connection.receiver.course,
-                "branch": connection.receiver.branch,
-                "year": connection.receiver.year,
-            },
+            "user": _serialize_connection_user(connection.receiver),
             "status": connection.status,
             "created_at": connection.created_at,
         }

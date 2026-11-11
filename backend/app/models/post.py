@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Text
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -30,6 +30,11 @@ class Post(Base):
     content: Mapped[str] = mapped_column(
         Text,
         nullable=False,
+    )
+
+    image_url: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
     )
 
     created_at: Mapped[datetime] = mapped_column(
@@ -65,3 +70,4 @@ class Post(Base):
         cascade="all, delete-orphan",
         lazy="select",
     )
+
