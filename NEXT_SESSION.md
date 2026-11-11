@@ -1,16 +1,16 @@
 # Campus Connect — Next Session
 
 **Last Updated:** 2026-11-11  
-**Current Phase:** Phase 1 Complete — Ready for Phase 2 Approval  
-**Overall Progress:** Phase 0 Complete (10/10 tasks). Phase 1 Complete (14/14 tasks). Total 24/98 tasks complete.
+**Current Phase:** Phase 2 Complete — Ready for Phase 3 Approval  
+**Overall Progress:** Phase 0 Complete (10/10 tasks). Phase 1 Complete (14/14 tasks). Phase 2 Complete (7/7 tasks). Total 31/98 tasks complete.
 
 ---
 
 ## 1. Current Project Phase
 
-**Phase 1 Complete — Ready for Phase 2 Approval**
+**Phase 2 Complete — Ready for Phase 3 Approval**
 
-Both Phase 0 (Foundation Stabilization & Repair) and Phase 1 (Authentication, Profiles & Navigation) are 100% complete, tested, and verified.
+Phase 0 (Foundation Stabilization & Repair), Phase 1 (Authentication, Profiles & Navigation), and Phase 2 (Connections Management) are 100% complete, tested, and verified.
 
 ---
 
@@ -21,14 +21,14 @@ Both Phase 0 (Foundation Stabilization & Repair) and Phase 1 (Authentication, Pr
 | Audit | ✔️ Complete | 100% |
 | Phase 0 — Stabilise & Repair | ✔️ Complete | 100% (10/10 tasks) |
 | Phase 1 — Auth, Profiles, Navigation | ✔️ Complete | 100% (14/14 tasks) |
-| Phase 2 — Connections Management | ⬜ Not Started | 0% (0/7 tasks) |
+| Phase 2 — Connections Management | ✔️ Complete | 100% (7/7 tasks) |
 | Phase 3 — Community | ⬜ Not Started | 0% (0/13 tasks) |
 | Phase 4 — Announcements & Admin | ⬜ Not Started | 0% (0/10 tasks) |
 | Phase 5 — Real-Time Messaging | ⬜ Not Started | 0% (0/15 tasks) |
 | Phase 6 — Notifications & Resources | ⬜ Not Started | 0% (0/13 tasks) |
 | Phase 7 — Testing & Deployment | ⬜ Not Started | 0% (0/16 tasks) |
 
-**Overall:** ~24.5% of full scope complete (Foundational architecture, secure auth, profile management, and database constraints in place).
+**Overall:** ~31.6% of full scope complete (Foundational architecture, secure auth, profile management, database constraints, discovery directory, and full connection lifecycle in place).
 
 ---
 
@@ -54,18 +54,33 @@ Both Phase 0 (Foundation Stabilization & Repair) and Phase 1 (Authentication, Pr
 8. **P1-08 Typed response schemas:** `schemas/user.py` and `schemas/auth.py` models.
 9. **P1-11 Dedicated Profile UI:** `frontend/src/pages/Profile.jsx` with full view and edit capabilities (name, degree, branch, year, avatar URL, bio) and global user state sync.
 
+### Phase 2:
+1. **P2-01 Connection status in user listings:** Dynamic `connection_status` (`null`, `"pending_sent"`, `"pending_received"`, `"accepted"`) and `connection_id` added to `GET /api/v1/users` and `GET /api/v1/users/{user_id}`.
+2. **P2-02 Dedicated Discover page:** `frontend/src/pages/Discover.jsx` with debounced search, course/branch/year filter dropdowns, student cards with all connection states, and loading skeletons.
+3. **P2-03 Dedicated Connections page:** `frontend/src/pages/Connections.jsx` with Connected, Requests, and Sent tabs, badge count pills, and client-side tab search.
+4. **P2-04 Optimistic connect actions:** Immediate UI update on click, in-flight loading indicators, and error rollback with auto-dismiss toast alerts.
+5. **P2-05 Accept and reject actions:** Incoming requests support Accept (`PATCH ?action=accepted`) and Decline (`PATCH ?action=rejected`) with rollback.
+6. **P2-06 Cancel sent requests:** Outgoing requests support Cancel (`DELETE /connections/{id}`) with rollback.
+7. **P2-07 Connection state consistency:** Full handling of `null`, `pending_sent`, `pending_received`, `accepted`, `rejected`, and self-user across Dashboard, Discover, and Connections.
+
 ---
 
-## 4. Pending Tasks (Phase 2 — Connections Management)
+## 4. Pending Tasks (Phase 3 — Community Module)
 
-When approved by user, Phase 2 tasks are:
-1. **P2-01:** Add `connection_status` field to user listing endpoint responses (`GET /users`).
-2. **P2-02:** Create dedicated Discover page (`frontend/src/pages/Discover.jsx`) with search, branch/course filtering, and active connect requests.
-3. **P2-03:** Create dedicated Connections page (`frontend/src/pages/Connections.jsx`) displaying accepted peers, pending received requests, and pending sent requests.
-4. **P2-04:** Wire connect buttons with optimistic UI state.
-5. **P2-05:** Add accept/reject request UI with action confirmations.
-6. **P2-06:** Add cancel sent request UI.
-7. **P2-07:** Handle all connection state permutations seamlessly in the frontend.
+When approved by user, Phase 3 tasks are:
+1. **P3-01:** Create Post model (`backend/app/models/post.py`).
+2. **P3-02:** Create Comment model (`backend/app/models/comment.py`).
+3. **P3-03:** Create Like model (`backend/app/models/like.py`).
+4. **P3-04:** Create Alembic migration for community tables (`posts`, `comments`, `likes`).
+5. **P3-05:** Create Pydantic schemas for posts, comments, likes (`backend/app/schemas/post.py`).
+6. **P3-06:** Implement Post API endpoints (`POST /posts`, `GET /posts`, `GET /posts/{id}`, `PATCH /posts/{id}`, `DELETE /posts/{id}`).
+7. **P3-07:** Implement Comment API endpoints (`POST /posts/{id}/comments`, `GET /posts/{id}/comments`, `DELETE /comments/{id}`).
+8. **P3-08:** Implement Like toggle API endpoint (`POST /posts/{id}/like`).
+9. **P3-09:** Create Community Feed page (`frontend/src/pages/Community.jsx`).
+10. **P3-10:** Create Post Composer component.
+11. **P3-11:** Create Post Card component with like and comment interactions.
+12. **P3-12:** Create Comment Section component.
+13. **P3-13:** Implement authorization-aware edit/delete actions for own content.
 
 ---
 
@@ -78,6 +93,16 @@ venv\Scripts\python.exe -m pytest tests/ -v
 ```
 
 ### Run frontend lint check:
+```powershell
+cd "c:\Users\Lenovo\Desktop\Campus Connect\frontend"
+npm run lint
+```
+
+### Run frontend production build:
+```powershell
+cd "c:\Users\Lenovo\Desktop\Campus Connect\frontend"
+npm run build
+```
 ```powershell
 cd "c:\Users\Lenovo\Desktop\Campus Connect\frontend"
 npm run lint

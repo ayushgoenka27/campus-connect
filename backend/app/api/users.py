@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_user_id
 from app.db.dependencies import get_db
+from app.models.connection import Connection
 from app.models.user import User
 from app.schemas.user import (
     CurrentUserProfileResponse,
@@ -91,7 +92,32 @@ def get_user_profile(
             detail="User not found",
         )
 
-    return user
+    # Determine connection status between current user and target user
+    connection = db.scalar(
+        select(Connection).where(
+            or_(
+                (Connection.sender_id == current_user_id)
+                & (Connection.receiver_id == user_id),
+                (Connection.sender_id == user_id)
+                & (Connection.receiver_id == current_user_id),
+            )
+        )
+    )
+
+    result = PublicUserProfileResponse.model_validate(user, from_attributes=True)
+    if connection:
+        result.connection_id = connection.id
+        if connection.status == "accepted":
+            result.connection_status = "accepted"
+        elif connection.status == "pending":
+            if connection.sender_id == current_user_id:
+                result.connection_status = "pending_sent"
+            else:
+                result.connection_status = "pending_received"
+        else:
+            result.connection_status = connection.status
+
+    return result
 
 
 @router.get(
@@ -138,4 +164,36 @@ def get_users(
     query = query.offset(skip).limit(limit)
 
     users = db.scalars(query).all()
-    return list(users)
+
+    # Build connection status map for the current user
+    connections = db.scalars(
+        select(Connection).where(
+            or_(
+                Connection.sender_id == user_id,
+                Connection.receiver_id == user_id,
+            )
+        )
+    ).all()
+
+    # Map: other_user_id -> (connection_id, connection_status_string)
+    conn_map: dict[int, tuple[int, str]] = {}
+    for conn in connections:
+        other_id = conn.receiver_id if conn.sender_id == user_id else conn.sender_id
+        if conn.status == "accepted":
+            conn_map[other_id] = (conn.id, "accepted")
+        elif conn.status == "pending":
+            if conn.sender_id == user_id:
+                conn_map[other_id] = (conn.id, "pending_sent")
+            else:
+                conn_map[other_id] = (conn.id, "pending_received")
+        else:
+            conn_map[other_id] = (conn.id, conn.status)
+
+    result = []
+    for u in users:
+        row = PublicUserProfileResponse.model_validate(u, from_attributes=True)
+        if u.id in conn_map:
+            row.connection_id, row.connection_status = conn_map[u.id]
+        result.append(row)
+
+    return result

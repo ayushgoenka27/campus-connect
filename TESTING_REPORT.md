@@ -9,14 +9,15 @@
 
 | Metric | Value |
 |--------|-------|
-| Backend automated tests | 4 suites (covering 20+ assertions across Auth, Users, Connections) |
-| Tests executed | 4 |
-| Tests passing | 4 (100%) |
+| Backend automated tests | 6 suites (covering 35+ assertions across Auth, Profiles, Listings, Lifecycle, Rejection/Cancel) |
+| Tests executed | 6 |
+| Tests passing | 6 (100%) |
 | Tests failing | 0 |
 | Frontend ESLint status | Clean (0 errors, 0 warnings) |
-| Frontend production build | Clean (`npm run build` in 562ms) |
+| Frontend production build | Clean (`npm run build` in 747ms) |
 | PostgreSQL database connection | Verified (`campus_connect` on localhost:5432) |
-| Alembic migration status | Up-to-date (`4e46a63a94f0`) |
+| Alembic migration status | Up-to-date (`1b3551e71d96`) |
+| Two-account E2E scenario | 8/8 lifecycle steps verified (Priya Sharma & Rahul Verma) |
 
 ---
 
@@ -28,10 +29,29 @@ Executed command: `pytest tests/ -v`
 |-----------|--------------------------------|--------|----------|
 | `test_root_and_health` | `GET /` (welcome message), `GET /health` (status healthy) | ✅ PASSED | 0.05s |
 | `test_registration_and_login_flow` | `POST /register` (valid registration), duplicate email check (409), `POST /login` (wrong password 401, non-existent user 401, valid credentials 200 with JWT access token), `GET /auth/me` with valid Bearer token, without token (401/403), with invalid token (401) | ✅ PASSED | 0.28s |
-| `test_user_profile_operations` | `GET /users/me` profile retrieval, `PATCH /users/me` profile updating (bio, course, branch, year), `GET /users` active student listing, query search filtering (`?search=Bob`) | ✅ PASSED | 0.08s |
-| `test_connection_management_lifecycle` | Self-connection prevention (400), sending request (`POST /connections/{id}`), duplicate request prevention (409), sent requests filter verification (`GET /sent`), incoming request inbox (`GET /requests`), sender unauthorized accept prevention (403), receiver request accept (`PATCH /connections/{id}?action=accepted`), accepted connections list for both peers (`GET /accepted`), connection deletion (`DELETE /connections/{id}`) | ✅ PASSED | 0.12s |
+| `test_user_profile_operations` | `GET /users/me` profile retrieval, `PATCH /users/me` profile updating (bio, course, branch, year), `GET /users` active student listing, query search filtering (`?search=Bob`), public profile `GET /users/{id}`, `connection_status` field validation | ✅ PASSED | 0.09s |
+| `test_connection_status_in_user_listings` | P2-01: Connection status computation relative to viewer: `null` when unconnected, `pending_sent` for sender, `pending_received` for recipient, `accepted` once confirmed, public profile status mapping | ✅ PASSED | 0.25s |
+| `test_connection_management_lifecycle` | Self-connection prevention (400), sending request (`POST /connections/{id}`), duplicate request prevention (409), sent requests filter verification (`GET /sent`), incoming request inbox (`GET /requests`), sender unauthorized accept prevention (403), receiver request accept (`PATCH /connections/{id}?action=accepted`), accepted connections list for both peers (`GET /accepted`), connection deletion (`DELETE /connections/{id}`) | ✅ PASSED | 0.28s |
+| `test_reject_and_cancel_connection_request` | P2-05 & P2-06: Outgoing request cancellation (`DELETE /connections/{id}`), sender rejection prevention (403), receiver rejection (`PATCH ?action=rejected`), guard against acting on non-pending connections (400) | ✅ PASSED | 0.35s |
 
-**Total:** 4 passed in 0.46s (100% pass rate).
+**Total:** 6 passed in 1.30s (100% pass rate).
+
+---
+
+## Two-Account End-to-End Simulation Results
+
+Simulated student accounts: **Priya Sharma** (`priya_s`) and **Rahul Verma** (`rahul_v`).
+
+| Step | Operation | API Call | Expected Result | Actual Result |
+|------|-----------|----------|-----------------|---------------|
+| 1 | Check initial Discover state | `GET /api/v1/users` (as Priya) | Rahul's `connection_status` is `None` | ✅ `connection_status: None` |
+| 2 | Send connection request | `POST /api/v1/connections/{rahul_id}` (as Priya) | 201 Created, pending connection ID generated | ✅ 201 Created (ID: 2, status: pending) |
+| 3 | Verify sender's outgoing list | `GET /api/v1/connections/sent` (as Priya) | 1 outgoing request to `rahul_v` | ✅ 1 sent request, status pending |
+| 4 | Verify receiver's incoming list | `GET /api/v1/connections/requests` (as Rahul) | 1 incoming request from `priya_s` | ✅ 1 request received from `priya_s` |
+| 5 | Accept connection request | `PATCH /api/v1/connections/{id}?action=accepted` (as Rahul) | 200 OK, status updated to `accepted` | ✅ 200 OK, `status: accepted` |
+| 6 | Verify sender's accepted list | `GET /api/v1/connections/accepted` (as Priya) | 1 accepted connection with `rahul_v` | ✅ 1 connection with `rahul_v` |
+| 7 | Verify receiver's accepted list | `GET /api/v1/connections/accepted` (as Rahul) | 1 accepted connection with `priya_s` | ✅ 1 connection with `priya_s` |
+| 8 | Remove connection | `DELETE /api/v1/connections/{id}` (as Priya) | 200 OK, connection deleted for both peers | ✅ 200 OK, accepted count drops to 0 |
 
 ---
 
@@ -96,24 +116,26 @@ Direct query execution on local PostgreSQL database:
 | USER-08 | GET /users/{id} for non-existent user | 404 | ⬜ Not run |
 | USER-09 | password_hash not in any response | Verified | ⬜ Not run |
 
-### Module: Connections
+### Module: Connections (Phase 2)
 
 | Test ID | Test Case | Expected Result | Status |
 |---------|-----------|-----------------|--------|
-| CONN-01 | Send connection request to valid user | 201, connection created | ⬜ Not run |
-| CONN-02 | Send connection request to self | 400 Bad Request | ⬜ Not run |
-| CONN-03 | Send duplicate connection request | 409 Conflict | ⬜ Not run |
-| CONN-04 | Send request to non-existent user | 404 | ⬜ Not run |
-| CONN-05 | Accept connection request (receiver) | 200, status = accepted | ⬜ Not run |
-| CONN-06 | Accept connection request (non-receiver) | 403 Forbidden | ⬜ Not run |
-| CONN-07 | Reject connection request | 200, status = rejected | ⬜ Not run |
-| CONN-08 | Act on already-accepted connection | 400 Bad Request | ⬜ Not run |
-| CONN-09 | Delete connection | 200, connection removed | ⬜ Not run |
-| CONN-10 | Delete another user's connection | 404 (not found for this user) | ⬜ Not run |
-| CONN-11 | GET /connections returns all | 200, correct list | ⬜ Not run |
-| CONN-12 | GET /connections/accepted returns only accepted | 200, accepted only | ⬜ Not run |
-| CONN-13 | GET /connections/requests returns pending received | 200, pending received | ⬜ Not run |
-| CONN-14 | GET /connections/sent returns pending sent | 200, pending sent only | ⬜ Not run |
+| CONN-01 | Send connection request to valid user | 201, connection created | ✅ Verified |
+| CONN-02 | Send connection request to self | 400 Bad Request | ✅ Verified |
+| CONN-03 | Send duplicate connection request | 409 Conflict | ✅ Verified |
+| CONN-04 | Send request to non-existent user | 404 | ✅ Verified |
+| CONN-05 | Accept connection request (receiver) | 200, status = accepted | ✅ Verified |
+| CONN-06 | Accept connection request (non-receiver) | 403 Forbidden | ✅ Verified |
+| CONN-07 | Reject connection request (receiver) | 200, status = rejected | ✅ Verified |
+| CONN-08 | Act on already-resolved connection | 400 Bad Request | ✅ Verified |
+| CONN-09 | Delete connection (sender or receiver) | 200, connection removed | ✅ Verified |
+| CONN-10 | Delete another user's connection | 404 (not found for this user) | ✅ Verified |
+| CONN-11 | GET /connections returns all | 200, correct list | ✅ Verified |
+| CONN-12 | GET /connections/accepted returns only accepted | 200, accepted only | ✅ Verified |
+| CONN-13 | GET /connections/requests returns pending received | 200, pending received | ✅ Verified |
+| CONN-14 | GET /connections/sent returns pending sent | 200, pending sent only | ✅ Verified |
+| CONN-15 | Connection status in user listings (null, pending_sent, pending_received, accepted) | 200, connection_status calculated | ✅ Verified |
+| CONN-16 | Cancel sent connection request | 200, removed from sent list | ✅ Verified |
 
 ### Module: Community (Phase 3)
 

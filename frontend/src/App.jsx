@@ -3,6 +3,8 @@ import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AppLayout from "./layout/AppLayout";
 import Dashboard from "./pages/Dashboard";
+import Discover from "./pages/Discover";
+import Connections from "./pages/Connections";
 import Profile from "./pages/Profile";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -21,24 +23,8 @@ export default function App() {
           <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>
               <Route path="/" element={<Dashboard />} />
-              <Route
-                path="/discover"
-                element={
-                  <ComingSoon
-                    title="Discover Students"
-                    description="Find and connect with students across branches, courses, and batches."
-                  />
-                }
-              />
-              <Route
-                path="/connections"
-                element={
-                  <ComingSoon
-                    title="My Connections"
-                    description="View your accepted connections and manage pending requests."
-                  />
-                }
-              />
+              <Route path="/discover" element={<Discover />} />
+              <Route path="/connections" element={<Connections />} />
               <Route
                 path="/messages"
                 element={

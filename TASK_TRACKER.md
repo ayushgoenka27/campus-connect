@@ -48,13 +48,13 @@ Legend: ⬜ Not Started | 🔄 In Progress | 🚧 Blocked | ✅ Implemented | �
 
 | ID | Task | Status | Notes |
 |----|------|--------|-------|
-| P2-01 | Add connection_status to user listings | ⬜ Not Started | `GET /users` response |
-| P2-02 | Create Discover page | ⬜ Not Started | `src/pages/Discover.jsx` |
-| P2-03 | Create Connections page | ⬜ Not Started | `src/pages/Connections.jsx` |
-| P2-04 | Wire connect buttons to API | ⬜ Not Started | With optimistic UI |
-| P2-05 | Add accept/reject request UI | ⬜ Not Started | Pending requests |
-| P2-06 | Add cancel sent request UI | ⬜ Not Started | Outgoing requests |
-| P2-07 | Handle all connection states in UI | ⬜ Not Started | Pending/accepted/rejected |
+| P2-01 | Add connection_status to user listings | ✔️ Completed | `GET /users` & `GET /users/{id}` include `connection_status` & `connection_id` |
+| P2-02 | Create Discover page | ✔️ Completed | `src/pages/Discover.jsx` with search, course/branch/year filters & card grid |
+| P2-03 | Create Connections page | ✔️ Completed | `src/pages/Connections.jsx` with Connected, Requests, and Sent tabs |
+| P2-04 | Wire connect buttons to API | ✔️ Completed | Optimistic UI update, loading state, error rollback & toast feedback |
+| P2-05 | Add accept/reject request UI | ✔️ Completed | Accept (`PATCH ?action=accepted`) & Decline (`PATCH ?action=rejected`) with rollback |
+| P2-06 | Add cancel sent request UI | ✔️ Completed | Cancel request (`DELETE /connections/{id}`) with rollback & toast feedback |
+| P2-07 | Handle all connection states in UI | ✔️ Completed | Handled: null, pending_sent, pending_received, accepted, rejected, self across app |
 
 ---
 

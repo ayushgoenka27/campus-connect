@@ -47,6 +47,8 @@ class PublicUserProfileResponse(BaseModel):
     branch: str | None = None
     year: int | None = None
     created_at: datetime
+    connection_status: str | None = None
+    connection_id: int | None = None
 
 
 class CurrentUserProfileResponse(BaseModel):

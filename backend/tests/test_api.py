@@ -112,10 +112,14 @@ def test_user_profile_operations(client):
     assert updated_user["course"] == update_payload["course"]
     assert updated_user["year"] == 3
 
-    # List active users
+    # List active users — connection_status field must be present
     users_res = client.get("/api/v1/users", headers=headers)
     assert users_res.status_code == 200
-    assert len(users_res.json()) >= 1
+    users_list = users_res.json()
+    assert len(users_list) >= 1
+    # Each user entry must carry connection_status (None for no connection)
+    for u in users_list:
+        assert "connection_status" in u
 
     # Search filter
     search_res = client.get("/api/v1/users?search=Bob", headers=headers)
@@ -129,6 +133,8 @@ def test_user_profile_operations(client):
     assert pub_data["full_name"] == "Bob Smith"
     assert pub_data["username"] == "bob_smith"
     assert "email" not in pub_data  # Public profile hides email address
+    # Self-profile should have no connection status
+    assert pub_data["connection_status"] is None
 
     # Non-existent user public profile returns 404
     not_found_res = client.get("/api/v1/users/999999", headers=headers)
@@ -138,6 +144,79 @@ def test_user_profile_operations(client):
     paged_res = client.get("/api/v1/users?skip=0&limit=1", headers=headers)
     assert paged_res.status_code == 200
     assert len(paged_res.json()) <= 1
+
+
+def test_connection_status_in_user_listings(client):
+    """P2-01: Verify connection_status field is correctly returned for each state."""
+    # Register User A
+    client.post(
+        "/api/v1/auth/register",
+        json={
+            "full_name": "Eva Green",
+            "username": "eva_g",
+            "email": "eva@university.edu",
+            "password": "Password123!",
+        },
+    )
+    res_a = client.post(
+        "/api/v1/auth/login",
+        json={"email": "eva@university.edu", "password": "Password123!"},
+    )
+    token_a = res_a.json()["access_token"]
+    headers_a = {"Authorization": f"Bearer {token_a}"}
+    u_a = client.get("/api/v1/users/me", headers=headers_a).json()
+
+    # Register User B
+    client.post(
+        "/api/v1/auth/register",
+        json={
+            "full_name": "Frank Miller",
+            "username": "frank_m",
+            "email": "frank@university.edu",
+            "password": "Password123!",
+        },
+    )
+    res_b = client.post(
+        "/api/v1/auth/login",
+        json={"email": "frank@university.edu", "password": "Password123!"},
+    )
+    token_b = res_b.json()["access_token"]
+    headers_b = {"Authorization": f"Bearer {token_b}"}
+    u_b = client.get("/api/v1/users/me", headers=headers_b).json()
+
+    # --- State: null (no connection yet) ---
+    users_a = client.get("/api/v1/users", headers=headers_a).json()
+    frank_entry = next((u for u in users_a if u["id"] == u_b["id"]), None)
+    assert frank_entry is not None
+    assert frank_entry["connection_status"] is None
+    assert frank_entry["connection_id"] is None
+
+    # --- State: pending_sent (A sent to B) ---
+    send_res = client.post(f"/api/v1/connections/{u_b['id']}", headers=headers_a)
+    assert send_res.status_code == 201
+    conn_id = send_res.json()["connection"]["id"]
+
+    users_a_after = client.get("/api/v1/users", headers=headers_a).json()
+    frank_sent = next((u for u in users_a_after if u["id"] == u_b["id"]), None)
+    assert frank_sent["connection_status"] == "pending_sent"
+    assert frank_sent["connection_id"] == conn_id
+
+    # --- State: pending_received (B sees pending_received) ---
+    users_b = client.get("/api/v1/users", headers=headers_b).json()
+    eva_received = next((u for u in users_b if u["id"] == u_a["id"]), None)
+    assert eva_received["connection_status"] == "pending_received"
+    assert eva_received["connection_id"] == conn_id
+
+    # --- State: accepted ---
+    client.patch(f"/api/v1/connections/{conn_id}?action=accepted", headers=headers_b)
+    users_a_accepted = client.get("/api/v1/users", headers=headers_a).json()
+    frank_accepted = next((u for u in users_a_accepted if u["id"] == u_b["id"]), None)
+    assert frank_accepted["connection_status"] == "accepted"
+
+    # --- Public profile also has connection_status ---
+    pub_res = client.get(f"/api/v1/users/{u_b['id']}", headers=headers_a)
+    assert pub_res.status_code == 200
+    assert pub_res.json()["connection_status"] == "accepted"
 
 
 def test_connection_management_lifecycle(client):
@@ -242,4 +321,73 @@ def test_connection_management_lifecycle(client):
     # Accepted connections should now be empty for both
     acc1_after = client.get("/api/v1/connections/accepted", headers=headers1)
     assert len(acc1_after.json()) == 0
+
+
+def test_reject_and_cancel_connection_request(client):
+    """P2-05 & P2-06: Verify cancellation of sent requests and rejection of incoming requests."""
+    # Register Grace Hopper
+    client.post(
+        "/api/v1/auth/register",
+        json={
+            "full_name": "Grace Hopper",
+            "username": "grace_h",
+            "email": "grace@university.edu",
+            "password": "Password123!",
+        },
+    )
+    res_g = client.post(
+        "/api/v1/auth/login",
+        json={"email": "grace@university.edu", "password": "Password123!"},
+    )
+    headers_g = {"Authorization": f"Bearer {res_g.json()['access_token']}"}
+    grace = client.get("/api/v1/users/me", headers=headers_g).json()
+
+    # Register Alan Turing
+    client.post(
+        "/api/v1/auth/register",
+        json={
+            "full_name": "Alan Turing",
+            "username": "alan_t",
+            "email": "alan@university.edu",
+            "password": "Password123!",
+        },
+    )
+    res_a = client.post(
+        "/api/v1/auth/login",
+        json={"email": "alan@university.edu", "password": "Password123!"},
+    )
+    headers_a = {"Authorization": f"Bearer {res_a.json()['access_token']}"}
+    alan = client.get("/api/v1/users/me", headers=headers_a).json()
+
+    # 1. Grace sends connection request to Alan
+    send_res = client.post(f"/api/v1/connections/{alan['id']}", headers=headers_g)
+    assert send_res.status_code == 201
+    conn_id = send_res.json()["connection"]["id"]
+
+    # 2. Grace cancels outgoing request (P2-06)
+    cancel_res = client.delete(f"/api/v1/connections/{conn_id}", headers=headers_g)
+    assert cancel_res.status_code == 200
+
+    # Verify both sent and requests are empty now
+    assert len(client.get("/api/v1/connections/sent", headers=headers_g).json()) == 0
+    assert len(client.get("/api/v1/connections/requests", headers=headers_a).json()) == 0
+
+    # 3. Alan sends connection request to Grace
+    send2_res = client.post(f"/api/v1/connections/{grace['id']}", headers=headers_a)
+    assert send2_res.status_code == 201
+    conn2_id = send2_res.json()["connection"]["id"]
+
+    # 4. Alan (sender) cannot reject or accept his own request
+    unauth_res = client.patch(f"/api/v1/connections/{conn2_id}?action=rejected", headers=headers_a)
+    assert unauth_res.status_code == 403
+
+    # 5. Grace (receiver) rejects the request (P2-05)
+    reject_res = client.patch(f"/api/v1/connections/{conn2_id}?action=rejected", headers=headers_g)
+    assert reject_res.status_code == 200
+    assert reject_res.json()["connection"]["status"] == "rejected"
+
+    # 6. Cannot accept a request that is no longer pending
+    reaccept_res = client.patch(f"/api/v1/connections/{conn2_id}?action=accepted", headers=headers_g)
+    assert reaccept_res.status_code == 400
+
 

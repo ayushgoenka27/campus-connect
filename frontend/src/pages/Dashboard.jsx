@@ -56,7 +56,7 @@ function getMemberSince(createdAt) {
 
 // ── Person card connect button ────────────────────────────────────
 
-function ConnectButton({ userId, connectionMap, currentUserId, connectingTo, onConnect }) {
+function ConnectButton({ userId, connectionMap, currentUserId, connectingTo, onConnect, onRespond }) {
   const conn = connectionMap[userId];
   const isConnecting = connectingTo.has(userId);
 
@@ -95,10 +95,10 @@ function ConnectButton({ userId, connectionMap, currentUserId, connectingTo, onC
     }
     return (
       <button
-        disabled
-        className="mt-5 w-full rounded-xl border border-amber-200 bg-amber-50 py-2.5 text-xs font-semibold text-amber-700 cursor-not-allowed"
+        onClick={onRespond}
+        className="mt-5 w-full rounded-xl border border-amber-300 bg-amber-50 py-2.5 text-xs font-semibold text-amber-800 transition hover:bg-amber-100"
       >
-        Wants to Connect
+        Respond
       </button>
     );
   }
@@ -337,18 +337,21 @@ export default function Dashboard() {
             value: loadingData ? "—" : stats.accepted,
             detail: stats.accepted === 1 ? "connected peer" : "connected peers",
             icon: <Users size={16} className="text-emerald-500" />,
+            onClick: () => navigate("/connections?tab=connected"),
           },
           {
             label: "Pending",
             value: loadingData ? "—" : stats.incomingPending,
             detail: "awaiting your reply",
             icon: <Clock size={16} className="text-amber-500" />,
+            onClick: () => navigate("/connections?tab=requests"),
           },
           {
             label: "Sent",
             value: loadingData ? "—" : stats.outgoingPending,
             detail: "awaiting their reply",
             icon: <ChevronRight size={16} className="text-blue-500" />,
+            onClick: () => navigate("/connections?tab=sent"),
           },
           {
             label: "Profile",
@@ -358,11 +361,13 @@ export default function Dashboard() {
                 ? "fully complete"
                 : "complete your profile",
             icon: <CheckCircle2 size={16} className="text-violet-500" />,
+            onClick: () => navigate("/profile"),
           },
-        ].map(({ label, value, detail, icon }) => (
+        ].map(({ label, value, detail, icon, onClick }) => (
           <div
             key={label}
-            className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+            onClick={onClick}
+            className="cursor-pointer rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-slate-300 hover:shadow-md"
           >
             <div className="flex items-center justify-between">
               <p className="text-xs font-medium text-slate-400">{label}</p>
@@ -620,6 +625,7 @@ export default function Dashboard() {
                   currentUserId={user?.id}
                   connectingTo={connectingTo}
                   onConnect={handleConnect}
+                  onRespond={() => navigate("/connections?tab=requests")}
                 />
               </div>
             ))}

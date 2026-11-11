@@ -15,6 +15,33 @@ Format:
 
 ---
 
+## [2026-11-11] — Phase 2 Connections Management Complete
+
+### Added
+- `frontend/src/pages/Discover.jsx` — Dedicated Discover Students page with live debounced search (by name, username, bio), dropdown filters for Course, Branch, and Academic Year, filter reset, student card grid with contextual connect buttons (Connect, Request Sent, Respond to Request, Connected), optimistic state updates with rollback on API failure, and loading skeletons.
+- `frontend/src/pages/Connections.jsx` — Dedicated My Connections page with 3 dynamic tabs:
+  - **Connected**: lists accepted peers with profile details, connection date, quick Message link, and Remove connection action.
+  - **Requests**: lists incoming connection requests with Accept (`PATCH ?action=accepted`) and Decline (`PATCH ?action=rejected`) actions, badge count indicators, and optimistic list updates.
+  - **Sent**: lists outgoing pending requests with Pending status badge and Cancel Request (`DELETE /connections/{id}`) action.
+  - Includes real-time client-side filter input within active tab, loading skeleton states, empty states tailored for each tab, and auto-dismissing toast notifications.
+- `backend/app/schemas/user.py` — Added `connection_status: str | None` and `connection_id: int | None` to `PublicUserProfileResponse`.
+- `backend/app/api/users.py` — Updated `GET /api/v1/users` and `GET /api/v1/users/{user_id}` to compute connection status relative to the requesting user (`"pending_sent"`, `"pending_received"`, `"accepted"`, or `null`).
+- Automated tests in `backend/tests/test_api.py`:
+  - `test_connection_status_in_user_listings`: verifies `null`, `pending_sent`, `pending_received`, and `accepted` status computation across user listing and public profile endpoints.
+  - `test_reject_and_cancel_connection_request`: verifies outgoing request cancellation, incoming request rejection, non-receiver rejection prevention (403), and non-pending transition checks (400).
+
+### Changed
+- `frontend/src/App.jsx` — Mounted `<Discover />` on route `/discover` and `<Connections />` on route `/connections`.
+- `frontend/src/pages/Dashboard.jsx` — Made stat cards clickable to navigate to their respective connection tabs (`/connections?tab=connected`, `/connections?tab=requests`, `/connections?tab=sent`, `/profile`), and updated "Wants to Connect" button on person cards to directly link to `/connections?tab=requests`.
+
+### Tests Executed
+- Automated `pytest` suite: 6/6 test suites passed in 1.30s.
+- Two-account E2E scenario executed and verified: Priya Sharma & Rahul Verma across all 8 lifecycle steps.
+- Frontend `npm run lint`: 0 errors, 0 warnings.
+- Frontend `npm run build`: built in 747ms cleanly.
+
+---
+
 ## [2026-11-11] — Phase 1 Authentication, Profiles & Navigation Complete
 
 ### Added

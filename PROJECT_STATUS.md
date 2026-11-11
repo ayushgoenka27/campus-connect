@@ -2,7 +2,7 @@
 
 **Audit Date:** 2026-11-11  
 **Auditor:** Principal Architect / AI Engineering Lead  
-**Current Phase:** Phase 1 Complete — Ready for Phase 2 Approval
+**Current Phase:** Phase 2 Complete — Ready for Phase 3 Approval
 
 ---
 
@@ -22,13 +22,13 @@ Campus Connect/
 │   │   ├── schemas/   auth.py, user.py
 │   │   ├── services/  (empty — no service layer yet)
 │   │   └── main.py
-│   ├── migrations/    2 Alembic revisions
+│   ├── migrations/    3 Alembic revisions
 │   └── main.py        (duplicate of app/main.py)
 ├── frontend/          React 19 + Vite 8 + Tailwind CSS 4
 │   └── src/
 │       ├── api/       client.js (Axios)
-│       ├── pages/     Login.jsx, Register.jsx
-│       └── App.jsx    (Dashboard + routing)
+│       ├── pages/     Login.jsx, Register.jsx, Dashboard.jsx, Profile.jsx, Discover.jsx, Connections.jsx
+│       └── App.jsx    (routing & providers)
 ├── campus_connect_proposal.pdf
 ├── campus_connect_srs.pdf
 └── campus_connect_uml_sources.zip
@@ -77,17 +77,17 @@ Campus Connect/
 #### Users (`/api/v1/users`)
 - ✅ `GET /me` — Full profile retrieval with typed `CurrentUserProfileResponse`
 - ✅ `PATCH /me` — Partial profile update (full name, bio, course, branch, year, avatar URL)
-- ✅ `GET /{user_id}` — Public profile retrieval with `PublicUserProfileResponse` (hides private email)
-- ✅ `GET /` — List active users with search, category filtering, and pagination (`skip`/`limit`)
+- ✅ `GET /{user_id}` — Public profile retrieval with `PublicUserProfileResponse` (hides private email, includes `connection_status` & `connection_id`)
+- ✅ `GET /` — List active users with search, course/branch/year filtering, pagination (`skip`/`limit`), and dynamic `connection_status` computation
 
 #### Connections (`/api/v1/connections`)
-- ✅ `POST /{user_id}` — Send connection request (self-connect prevented, duplicate checked)
+- ✅ `POST /{user_id}` — Send connection request (self-connect prevented, duplicate checked, status initialized to pending)
 - ✅ `GET /` — All connections (sent + received, all statuses)
-- ✅ `PATCH /{connection_id}?action=` — Accept or reject pending requests (receiver-only)
+- ✅ `PATCH /{connection_id}?action=` — Accept or reject pending requests (receiver-only, non-pending rejection guarded)
 - ✅ `GET /accepted` — Accepted connections eager-loaded with SQL JOIN (`joinedload`)
 - ✅ `GET /requests` — Incoming pending requests eager-loaded with SQL JOIN (`joinedload`)
 - ✅ `GET /sent` — Outgoing pending requests eager-loaded with SQL JOIN (`joinedload`)
-- ✅ `DELETE /{connection_id}` — Remove a connection (sender or receiver)
+- ✅ `DELETE /{connection_id}` — Remove a connection or cancel an outgoing request (sender or receiver)
 
 #### Database
 - ✅ `users` table — Full schema
@@ -102,9 +102,11 @@ Campus Connect/
 - ✅ Authentication State — `AuthContext` provides reactive token management, current user caching, and `logout`
 - ✅ Route Protection — `ProtectedRoute` redirects unauthorized requests to `/login`, renders loading state while validating
 - ✅ Shared AppLayout — Responsive sidebar, topbar, user profile pill, and functional logout button
-- ✅ Dashboard — Connected to live backend (`/api/v1/users/me`, `/api/v1/connections`, `/api/v1/users`), calculates real connection metrics, real profile completion %, and live discover suggestions with functional connect requests
-- ✅ Profile Page — Dedicated [`Profile.jsx`](file:///c:/Users/Lenovo/Desktop/Campus%20Connect/frontend/src/pages/Profile.jsx) with complete view and edit modes, instant preview, degree/branch/year/bio editing, and global state sync via `refreshUser()`
-- ✅ Placeholder Views — `ComingSoon` component wired to pending Phase 2–6 workspace routes preventing dead links
+- ✅ Dashboard — Connected to live backend (`/api/v1/users/me`, `/api/v1/connections`, `/api/v1/users`), calculates real connection metrics, real profile completion %, live discover suggestions with functional connect requests and interactive stat cards
+- ✅ Profile Page — Dedicated `Profile.jsx` with complete view and edit modes, instant preview, degree/branch/year/bio editing, and global state sync via `refreshUser()`
+- ✅ Discover Page — Dedicated `Discover.jsx` with live debounced search, course/branch/year filter dropdowns, student cards with all connection states (Connect, Request Sent, Respond to Request, Connected), optimistic updates with rollback, and loading skeletons
+- ✅ Connections Page — Dedicated `Connections.jsx` with 3 active tabs (Connected, Requests, Sent), badge counts, Accept/Decline incoming requests, Cancel outgoing requests, Remove accepted connection, optimistic updates with rollback, and inline search
+- ✅ Placeholder Views — `ComingSoon` component wired to pending Phase 3–6 workspace routes preventing dead links
 
 ---
 
@@ -112,14 +114,13 @@ Campus Connect/
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Connections UI | Partial | Backend fully optimized; dedicated Discover & Connections pages queued for Phase 2 |
 | Admin dashboard | Partial | User role field exists; `get_current_admin` RBAC dependency active; admin UI queued for Phase 4 |
 
 ---
 
-## 5. Resolved in Phase 0 & Phase 1 vs Remaining Technical Issues
+## 5. Resolved in Phase 0, 1 & 2 vs Remaining Technical Issues
 
-### Fixed in Phase 0 & Phase 1:
+### Fixed in Phase 0, 1 & 2:
 - ✅ **Login field mismatch:** Fixed in `Login.jsx` (changed `username` to `email`, wired to `useAuth().login`).
 - ✅ **No auth guard on dashboard:** Added `ProtectedRoute` in `App.jsx`.
 - ✅ **Hardcoded user identity:** Replaced with live user data from `AuthContext` (`/api/v1/users/me`).
@@ -135,11 +136,13 @@ Campus Connect/
 - ✅ **N+1 queries in connections:** Optimized `GET /accepted`, `/requests`, and `/sent` with SQLAlchemy `joinedload`.
 - ✅ **Public profile endpoint:** Added `GET /api/v1/users/{user_id}` and pagination on `GET /api/v1/users`.
 - ✅ **Dedicated Profile UI:** Created `frontend/src/pages/Profile.jsx` with view and edit modes.
+- ✅ **Connection status in user listings:** Added dynamic `connection_status` and `connection_id` to `GET /users` and `GET /users/{id}` (P2-01).
+- ✅ **Dedicated Discover page:** Created `frontend/src/pages/Discover.jsx` with live debounced search, course/branch/year filters, student cards with all connection states, optimistic updates with rollback, and loading skeletons (P2-02).
+- ✅ **Dedicated Connections page:** Created `frontend/src/pages/Connections.jsx` with Connected, Requests, and Sent tabs, badge counts, Accept/Decline, Cancel sent, Remove connection, and optimistic rollback (P2-03 to P2-07).
 
-### Remaining Issues (Scheduled for Phase 2+):
+### Remaining Issues (Scheduled for Phase 3+):
 | Issue | Severity | Location | Detail |
 |-------|----------|----------|--------|
-| Dedicated Connections UI | 🟡 Medium | Frontend | Discover & Connections pages (Phase 2) |
 | Weak JWT secret | 🟡 Medium | `.env` | Must use generated 32+ char secret in production deployment |
 | Services directory empty | 🟡 Low | `app/services/` | Business logic separation starting in Phase 3 |
 
@@ -149,35 +152,29 @@ Campus Connect/
 
 | Module | Required Features | Status |
 |--------|-------------------|--------|
-| D — Community | Posts, likes, comments, search, pagination | ❌ Not started |
-| E — Announcements | Admin CRUD, student view, categories, publish/unpublish | ❌ Not started |
-| F — Messaging | WebSocket real-time DMs, conversation list, message history | ❌ Not started |
-| G — Notifications | Connection, message, announcement notifications | ❌ Not started |
-| H — Campus Resources | Academic resources, events, placement info | ❌ Not started |
-| Admin dashboard | Role-based admin panel | ❌ Not started |
-| Profile image upload | File upload endpoint | ❌ Not started |
-| Connections page (frontend) | Manage connections, requests, discover students | ❌ Not started |
-| Profile page (frontend) | View/edit profile | ❌ Not started |
-| Health check endpoint | `GET /health` | ❌ Not started |
-| Tests (backend) | pytest suite | ❌ Not started |
-| Tests (frontend) | Vitest component tests | ❌ Not started |
-| Docker | Dockerfile + docker-compose | ❌ Not started |
-| .env.example | Placeholder values | ❌ Not started |
+| D — Community | Posts, likes, comments, search, pagination | ❌ Not started (Phase 3) |
+| E — Announcements | Admin CRUD, student view, categories, publish/unpublish | ❌ Not started (Phase 4) |
+| F — Messaging | WebSocket real-time DMs, conversation list, message history | ❌ Not started (Phase 5) |
+| G — Notifications | Connection, message, announcement notifications | ❌ Not started (Phase 6) |
+| H — Campus Resources | Academic resources, events, placement info | ❌ Not started (Phase 6) |
+| Admin dashboard | Role-based admin panel | ❌ Not started (Phase 4) |
+| Profile image upload | File upload endpoint | ❌ Not started (Phase 6/7) |
+| Connections page (frontend) | Manage connections, requests, discover students | ✅ Complete (Phase 2) |
+| Profile page (frontend) | View/edit profile | ✅ Complete (Phase 1) |
+| Health check endpoint | `GET /health` | ✅ Complete (Phase 1) |
+| Tests (backend) | pytest suite | ✅ 6 suites passing |
+| Tests (frontend) | Vitest component tests | ❌ Not started (Phase 7) |
+| Docker | Dockerfile + docker-compose | ❌ Not started (Phase 7) |
+| .env.example | Placeholder values | ✅ Complete (Phase 0) |
 
 ---
 
 ## 7. Known Technical Debt
 
-1. No service layer — business logic lives in route handlers
-2. N+1 queries in connection detail endpoints
-3. No DB unique constraint on connections
-4. `echo=True` in database config
-5. Duplicate entry points (`backend/main.py` vs `backend/app/main.py`)
-6. Mixed TS/JS artifacts in frontend
-7. No pagination on `GET /users`
-8. No rate limiting on auth endpoints
-9. CORS whitelist only hardcodes localhost ports
-10. No password strength validation
+1. No service layer — business logic lives in route handlers (scheduled for Phase 3)
+2. CORS whitelist only hardcodes localhost ports
+3. Weak JWT secret placeholder in local dev environment
+4. Starlette testclient httpx deprecation warning (to be updated to httpx2 in Phase 7)
 
 ---
 
@@ -199,10 +196,11 @@ Campus Connect/
 
 | Area | Tests Present | Executed | Status |
 |------|--------------|----------|--------|
-| Backend API (pytest + httpx) | 4 comprehensive suites | 4 executed | ✅ 4/4 Passed in 0.46s |
+| Backend API (pytest + httpx) | 6 comprehensive suites | 6 executed | ✅ 6/6 Passed in 1.30s |
 | Frontend Code Quality (ESLint) | Project-wide | Executed | ✅ 0 errors, 0 warnings |
-| Frontend Production Build (Vite) | Full bundling | Executed | ✅ Built in 562ms |
+| Frontend Production Build (Vite) | Full bundling | Executed | ✅ Built in 747ms |
 | PostgreSQL Connectivity | Live check | Executed | ✅ Connected to `campus_connect` |
+| Two-Account E2E Simulation | Full connection lifecycle | Executed | ✅ 8/8 actions verified |
 
 ---
 
