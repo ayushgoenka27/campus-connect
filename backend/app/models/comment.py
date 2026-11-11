@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -35,6 +35,14 @@ class Comment(Base):
     content: Mapped[str] = mapped_column(
         Text,
         nullable=False,
+    )
+
+    is_hidden: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        # Set to True by admin moderation (FR-ADM-2); comment is not deleted,
+        # preserving report history. Hidden comments are excluded from public views.
     )
 
     created_at: Mapped[datetime] = mapped_column(

@@ -1,8 +1,8 @@
 # Campus Connect — Project Status
 
-**Audit Date:** 2026-11-11  
+**Audit Date:** 2026-11-12  
 **Auditor:** Principal Architect / AI Engineering Lead  
-**Current Phase:** Phase 3 Complete (SRS Remediated) — Ready for Phase 4 Approval
+**Current Phase:** Phase 4 Complete (Announcements & Admin) — Ready for Phase 5 Approval
 
 ---
 
@@ -100,27 +100,50 @@ Campus Connect/
 - ✅ `POST /{post_id}/comments`, `GET /{post_id}/comments`, `DELETE /comments/{comment_id}` — Comment creation, chronological listing, author-only deletion
 - ✅ `POST /{post_id}/like` — Idempotent like/unlike toggle backed by `uq_likes_post_user`
 
+#### Announcements (`/api/v1/announcements`)
+- ✅ `POST /` — Create announcement (admin only, draft or published, optional pinned flag)
+- ✅ `GET /` — List announcements with category filter, search keyword, and pinned prioritization; drafts hidden from students
+- ✅ `GET /{announcement_id}` — Detail view with author serialization
+- ✅ `PATCH /{announcement_id}` — Edit announcement (admin only)
+- ✅ `PATCH /{announcement_id}/publish` — Quick toggle published status (admin only)
+- ✅ `DELETE /{announcement_id}` — Delete announcement (admin only)
+
+#### Reports & Content Moderation (`/api/v1/reports`, `/api/v1/admin`)
+- ✅ `POST /api/v1/reports` — Submit report against single post or comment; snapshot of target content preserved; duplicate reports blocked with 409; self-reporting blocked with 400
+- ✅ `GET /api/v1/reports/my` — User view of submitted reports
+- ✅ `GET /api/v1/admin/stats` — Platform metrics (total users, active users, posts, announcements, pending reports)
+- ✅ `GET /api/v1/admin/users` — Paginated user directory with search and role/active filters
+- ✅ `PATCH /api/v1/admin/users/{id}/status` — Activate/deactivate accounts with self-deactivation & last active administrator safeguards; deactivated accounts immediately receive 403 on all protected endpoints
+- ✅ `GET /api/v1/admin/reports` — Moderation queue with status filter
+- ✅ `PATCH /api/v1/admin/reports/{id}` — Moderation actions (dismiss, hide content, remove content) with atomic transactions and audit logging
+- ✅ `moderation_logs` audit trail — Append-only record with admin ID, action, target entity snapshot, and timestamp
+
 #### Database
-- ✅ `users` table — Full schema
-- ✅ `connections` table — sender_id FK, receiver_id FK, status, timestamps, composite unique constraint `uq_connections_sender_receiver`, bidirectional expression unique index `uq_connections_user_pair` (`LEAST(sender_id, receiver_id), GREATEST(sender_id, receiver_id)`)
-- ✅ `posts` table — author_id FK (`CASCADE`), content, nullable `image_url`, timestamps
-- ✅ `comments` table — post_id FK (`CASCADE`), author_id FK (`CASCADE`), content, created_at
+- ✅ `users` table — Full schema with `role` and `is_active`
+- ✅ `connections` table — sender_id FK, receiver_id FK, status, timestamps, composite unique constraint `uq_connections_sender_receiver`, bidirectional expression unique index `uq_connections_user_pair`
+- ✅ `posts` table — author_id FK (`CASCADE`), content, nullable `image_url`, `is_hidden`, timestamps
+- ✅ `comments` table — post_id FK (`CASCADE`), author_id FK (`CASCADE`), content, `is_hidden`, created_at
 - ✅ `likes` table — post_id FK (`CASCADE`), user_id FK (`CASCADE`), composite unique constraint `uq_likes_post_user`
-- ✅ 6 Alembic migrations applied up to `0046fc91e8d6`
-- ✅ Indexes on id, email, username, sender_id, receiver_id, post_id, author_id, user_id
+- ✅ `announcements` table — author_id FK (`SET NULL` — survives admin removal), title, content, category, is_published, is_pinned, timestamps
+- ✅ `reports` table — reporter_id FK (`CASCADE`), immutable snapshots (`target_type`, `target_id`, `target_preview`, `target_author_id`), nullable `post_id`/`comment_id` FK (`SET NULL`), composite unique index `uq_reports_reporter_target`
+- ✅ `moderation_logs` table — admin_id FK (`SET NULL`), action, target_type, target_id, notes, created_at
+- ✅ 7 Alembic migrations applied up to `6a912f8eac82`
+- ✅ Indexes on all primary keys, foreign keys, filter flags, and composite unique pairs
 
 ### Frontend — Verified Present
 - ✅ Login page — Correctly sends `email` & `password`, integrates with `AuthContext`
 - ✅ Register page — Full validation, creates user, redirects to login
 - ✅ Authentication State — `AuthContext` provides reactive token management, current user caching, and `logout`
-- ✅ Route Protection — `ProtectedRoute` redirects unauthorized requests to `/login`, renders loading state while validating
-- ✅ Shared AppLayout — Responsive sidebar, topbar, user profile pill, and functional logout button
-- ✅ Dashboard — Connected to live backend (`/api/v1/users/me`, `/api/v1/connections`, `/api/v1/users`), calculates real connection metrics, real profile completion %, live discover suggestions with functional connect requests and interactive stat cards
-- ✅ Profile Page — Dedicated `Profile.jsx` with complete view and edit modes, instant preview, degree/branch/year/bio editing, and global state sync via `refreshUser()`
-- ✅ Discover Page — Dedicated `Discover.jsx` with live debounced search, course/branch/year filter dropdowns, student cards with all connection states (Connect including after rejection, Request Sent, Respond to Request, Connected), optimistic updates with rollback, and loading skeletons
-- ✅ Connections Page — Dedicated `Connections.jsx` with 3 active tabs (Connected, Requests, Sent), badge counts, Accept/Decline incoming requests, Cancel outgoing requests, Remove accepted connection, optimistic updates with rollback, and inline search
-- ✅ Community Page — Dedicated `Community.jsx` with debounced keyword search bar, post composer with optional `image_url` input/validation/preview, image rendering with `onError` graceful fallback, optimistic like toggle, inline post edit/delete for authors, expandable comment threads, pagination, loading skeletons, and error retry
-- ✅ Placeholder Views — `ComingSoon` component wired to pending Phase 4–6 workspace routes preventing dead links
+- ✅ Route Protection — `ProtectedRoute` redirects unauthorized requests to `/login`, `AdminRoute` restricts admin console to `"admin"` and `"administrator"`
+- ✅ Shared AppLayout — Responsive sidebar with `overflow-y-auto`, active NavLinks, role-gated "Admin Console" section for admins, user pill, and functional logout
+- ✅ Dashboard — Live metrics from `/users/me`, `/connections`, `/users`
+- ✅ Profile Page — View and edit modes with global refresh
+- ✅ Discover Page — Student search, filter dropdowns, contextual connection buttons
+- ✅ Connections Page — Connected, Requests, and Sent tabs with full action lifecycles
+- ✅ Community Page — Post composer with image preview, feed with search and like toggle, comments drawer, author edit/delete
+- ✅ Announcements Page — Dedicated `Announcements.jsx` with category tabs, search, pinned notice badges, and admin actions (Post announcement modal, publish toggle, edit, delete)
+- ✅ Admin Dashboard — Dedicated `AdminDashboard.jsx` with 5 live metric cards, User Directory with search/role filters and activation toggle, and Moderation Queue with hide/remove/dismiss actions
+- ✅ Placeholder Views — `ComingSoon` component wired to pending Phase 5–6 workspace routes
 
 ---
 
@@ -128,11 +151,11 @@ Campus Connect/
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Admin dashboard | Partial | User role field exists; `get_current_admin` RBAC dependency active; admin UI queued for Phase 4 |
+| Real-time messaging | Queued | WebSocket infrastructure planned for Phase 5 |
 
 ---
 
-## 5. Resolved in Phase 0, 1 & 2 vs Remaining Technical Issues
+## 5. Resolved in Phase 0, 1, 2, 3 & 4 vs Remaining Technical Issues
 
 ### Fixed in Phase 0, 1 & 2:
 - ✅ **Login field mismatch:** Fixed in `Login.jsx` (changed `username` to `email`, wired to `useAuth().login`).
@@ -178,18 +201,18 @@ Campus Connect/
 | Module | Required Features | Status |
 |--------|-------------------|--------|
 | D — Community | Posts, optional `image_url`, likes, comments, keyword search, pagination | ✅ Complete (Phase 3 + SRS remediation) |
-| E — Announcements | Admin CRUD, student view, categories, publish/unpublish | ❌ Not started (Phase 4) |
+| E — Announcements | Admin CRUD, student view, categories, publish/unpublish, search, pinning | ✅ Complete (Phase 4) |
 | F — Messaging | WebSocket real-time DMs, conversation list, message history | ❌ Not started (Phase 5) |
 | G — Notifications | Connection, message, announcement notifications | ❌ Not started (Phase 6) |
 | H — Campus Resources | Academic resources, events, placement info | ❌ Not started (Phase 6) |
-| Admin dashboard | Role-based admin panel & content moderation | ❌ Not started (Phase 4) |
+| Admin dashboard | Role-based admin panel, user management & content moderation | ✅ Complete (Phase 4) |
 | Profile/Post file uploads | Direct Cloudinary / multipart upload (URL strings used currently) | ❌ Not started (Phase 6/7) |
 | Connections page (frontend) | Manage connections, requests, discover students | ✅ Complete (Phase 2) |
 | Profile page (frontend) | View/edit profile | ✅ Complete (Phase 1) |
 | Health check endpoint | `GET /health` | ✅ Complete (Phase 1) |
-| Tests (backend) | pytest suite | ✅ 20 suites passing |
-| Tests (frontend) | Vitest + RTL component tests | ✅ 6 suites passing (Phase 3 remediation) |
-| Browser UI E2E | Live Chrome + PostgreSQL via Playwright | ✅ 15/15 browser checks passed |
+| Tests (backend) | pytest suite | ✅ 57 suites passing |
+| Tests (frontend) | Vitest + RTL component tests | ✅ 13 suites passing |
+| Browser UI E2E | Live Chrome + PostgreSQL via Playwright | ✅ Full Phase 4 student + admin workflows passed |
 | Docker | Dockerfile + docker-compose | ❌ Not started (Phase 7) |
 | .env.example | Placeholder values | ✅ Complete (Phase 0) |
 
@@ -211,10 +234,13 @@ Campus Connect/
 |---------|----------|------|
 | Argon2 for password hashing | ✅ Good | Strong, modern memory-hard algorithm |
 | JWT secret is a placeholder | 🔴 Must fix | Replace with generated 32+ char cryptographic secret before production deploy |
-| Route guard on frontend | ✅ Resolved | Protected by `ProtectedRoute`, unauthenticated requests redirected |
+| Route guard on frontend | ✅ Resolved | Protected by `ProtectedRoute`, admin routes protected by `AdminRoute` |
 | `.env` is in `.gitignore` | ✅ Good | Credentials won't be committed; `.env.example` provided |
 | `password_hash` not returned in any API response | ✅ Good | Correctly hidden across all endpoints |
 | Peer `email` hidden in profiles & connection lists | ✅ Improved | Removed from `/connections/accepted`, `/requests`, and `/sent` payloads |
+| Deactivated account access | ✅ Enforced | Inactive users immediately receive 403 on all protected endpoints |
+| Admin account safeguards | ✅ Enforced | Self-deactivation and last active administrator deactivation blocked |
+| Content moderation snapshots | ✅ Preserved | Reports snapshot content and author before deletion |
 | Image URL scheme validation | ✅ Good | Enforces `http://`/`https://` and rejects `javascript:` or malformed schemes |
 | Password validation | ✅ Strengthened | Enforced minimum 8 characters in `schemas/auth.py` |
 | No rate limiting | 🟡 Note | Recommended for production on `/auth/login` and `/auth/register` |
@@ -225,23 +251,21 @@ Campus Connect/
 
 | Area | Tests Present | Executed | Status |
 |------|--------------|----------|--------|
-| Backend API (`pytest`) | 20 tests (`test_api.py` 8 + `test_community.py` 12) | 20 executed | ✅ 20/20 Passed in 3.85s (SQLite in-memory) |
-| Frontend Component Tests (`Vitest + RTL`) | 6 tests (`Community.test.jsx` 4 + `Connections.test.jsx` 2) | 6 executed | ✅ 6/6 Passed in 5.09s (mocked API in `jsdom`) |
+| Backend API (`pytest`) | 57 tests (`test_api.py` 8 + `test_community.py` 12 + `test_announcements.py` 37) | 57 executed | ✅ 57/57 Passed in 7.61s (SQLite in-memory) |
+| Frontend Component Tests (`Vitest + RTL`) | 13 tests (`Community` 4 + `Connections` 2 + `Announcements` 4 + `AdminDashboard` 3) | 13 executed | ✅ 13/13 Passed in 4.37s (mocked API in `jsdom`) |
 | Frontend Code Quality (ESLint) | Project-wide | Executed | ✅ 0 errors, 0 warnings |
-| Frontend Production Build (Vite) | Full bundling | Executed | ✅ Built in 713ms (`1,893` modules) |
-| Isolated Migration Check (`Alembic`) | `08e11984b53b` -> `0046fc91e8d6` + downgrade | Executed | ✅ Passed on temp DB (`campus_connect_mig_test`) |
-| Live Browser UI E2E (Playwright + Chrome) | Full Community & Connections flows (2 accounts) | 15 executed | ✅ 15/15 Passed against live PostgreSQL (`Console errors: []`, `HTTP >= 400: []`) |
-| PostgreSQL Connectivity | Live check | Executed | ✅ Connected to `campus_connect` |
-| Two-Account API Simulation | Connection lifecycle | Executed | ✅ 8/8 API actions verified (`TestClient`) |
+| Frontend Production Build (Vite) | Full bundling | Executed | ✅ Built in 649ms (`1,896` modules) |
+| Isolated Migration Check (`Alembic`) | Full chain through `6a912f8eac82` + downgrade | Executed | ✅ Passed on temp DB (`campus_connect_p4_test2`) |
+| Live Browser UI E2E (Playwright + Chrome) | Full Phase 4 student + admin operations | Executed | ✅ Passed against live PostgreSQL (`scratch/p4_browser_e2e.py`) |
+| PostgreSQL Connectivity | Live check | Executed | ✅ Connected to `campus_connect` at head `6a912f8eac82` |
 
 ---
 
 ## 10. Database Status
 
 - PostgreSQL connected and active on `localhost:5432`, database `campus_connect`
-- Alembic migration revision: `0046fc91e8d6` (head, up-to-date)
-- Tables present: `alembic_version`, `users`, `connections`, `posts`, `comments`, `likes`
-- Connections indexes: `ix_connections_id`, `ix_connections_receiver_id`, `ix_connections_sender_id`, `uq_connections_sender_receiver`, `uq_connections_user_pair`
-- Existing data preserved: 6 user accounts (`teststudent01`..`user_beta`), 2 connections (IDs 1 and 4), 0 posts
-- **Missing tables (Phase 4–6):** announcements, messages, conversations, notifications, resources, events, reports
+- Alembic migration revision: `6a912f8eac82` (head, up-to-date)
+- Tables present: `alembic_version`, `users`, `connections`, `posts`, `comments`, `likes`, `announcements`, `reports`, `moderation_logs`
+- Existing data preserved: 6 user accounts (`teststudent01`..`user_beta`), 2 connections (IDs 1 and 4), 0 posts, 0 announcements, 0 reports, 0 moderation logs
+- **Missing tables (Phase 5–6):** messages, conversations, notifications, resources, events
 

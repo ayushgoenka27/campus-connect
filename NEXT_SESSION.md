@@ -1,16 +1,16 @@
 # Campus Connect — Next Session
 
-**Last Updated:** 2026-11-11  
-**Current Phase:** Phase 3 Complete (SRS Remediated) — Ready for Phase 4 Approval  
-**Overall Progress:** Phase 0 (10/10), Phase 1 (14/14), Phase 2 (7/7), Phase 3 (13/13). **Total: 44/98 tasks complete (44.9%).**
+**Last Updated:** 2026-11-12  
+**Current Phase:** Phase 4 Complete (Announcements & Admin) — Ready for Phase 5 Approval  
+**Overall Progress:** Phase 0 (10/10), Phase 1 (14/14), Phase 2 (7/7), Phase 3 (13/13), Phase 4 (10/10). **Total: 54/98 tasks complete (55.1%).**
 
 ---
 
 ## 1. Current Project Phase
 
-**Phase 3 Complete (SRS Remediated) — Ready for Phase 4 Approval**
+**Phase 4 Complete — Ready for Phase 5 Approval**
 
-Phases 0, 1, 2, and 3 are implemented, remediated for Community SRS alignment (`FR-COMM-1` through `FR-COMM-6`), hardened with bidirectional DB-level connection uniqueness (`uq_connections_user_pair`), and verified across backend `pytest` (`20/20`), frontend `Vitest` (`6/6`), ESLint, Vite build, isolated Alembic migration checks, and live Chrome browser E2E (`15/15` against PostgreSQL).
+Phases 0, 1, 2, 3, and 4 are fully implemented, verified with automated tests and live Chrome browser E2E, and backed by PostgreSQL migration revision `6a912f8eac82` at head.
 
 ---
 
@@ -23,41 +23,88 @@ Phases 0, 1, 2, and 3 are implemented, remediated for Community SRS alignment (`
 | Phase 1 — Auth, Profiles, Navigation | ✔️ Complete | 100% (14/14 tasks) |
 | Phase 2 — Connections Management | ✔️ Complete | 100% (7/7 tasks) |
 | Phase 3 — Community & SRS Remediation | ✔️ Complete | 100% (13/13 tasks) |
-| Phase 4 — Announcements & Admin | ⬜ Not Started | 0% (0/10 tasks) |
+| Phase 4 — Announcements & Admin | ✔️ Complete | 100% (10/10 tasks) |
 | Phase 5 — Real-Time Messaging | ⬜ Not Started | 0% (0/15 tasks) |
 | Phase 6 — Notifications & Resources | ⬜ Not Started | 0% (0/13 tasks) |
 | Phase 7 — Testing & Deployment | ⬜ Not Started | 0% (0/16 tasks) |
 
 ---
 
-## 3. Completed Work Summary (Phase 3 + Remediation)
+## 3. Completed Work Summary (Phase 4 — Announcements & Admin)
 
-1. **Community Models & Migrations (`P3-01`–`P3-04`):** `Post` (with nullable `image_url`), `Comment`, and `Like` (`uq_likes_post_user`) created and migrated via `abd8d6ee3c59` and `115f1d3a947f`; bidirectional connection unique index `uq_connections_user_pair` added via `0046fc91e8d6`.
-2. **Community API (`P3-05`–`P3-08`):** `POST/GET/PATCH/DELETE /api/v1/posts`, comments (`POST/GET /posts/{id}/comments`, `DELETE /posts/comments/{id}`), idempotent like toggle (`POST /posts/{id}/like`), `?search=` keyword filtering (`FR-COMM-4`), HTTP/HTTPS `image_url` validation, and batched aggregate queries (eliminating N+1 queries).
-3. **Community UI (`P3-09`–`P3-13`):** `frontend/src/pages/Community.jsx` with debounced search bar, post composer with optional `image_url` validation & preview, `onError` graceful image fallback, inline post edit/delete for authors, optimistic like toggle, lazy-loaded comment sections, pagination, and skeletons.
-4. **Connection Correctness & Privacy Fixes:** Database-level symmetric index `uq_connections_user_pair` + `IntegrityError` rollback returning `409`, re-request after rejection enabled while blocking bidirectional duplicates, and peer `email` removed from `/connections/accepted`, `/requests`, and `/sent`.
-5. **Automated & Browser Test Suites:** `20/20` backend `pytest` API/DB tests, `6/6` frontend `Vitest + RTL` mocked component tests, and `15/15` live Chrome Playwright E2E browser checks passing against PostgreSQL.
+1. **Announcements, Reports & Audit Models (`P4-01`):**
+   - `Announcement` model (`author_id` SET NULL on delete, `category`, `is_published`, `is_pinned`).
+   - `Report` model with immutable evidence snapshots (`target_type`, `target_id`, `target_preview`, `target_author_id`), nullable `post_id`/`comment_id` with `ON DELETE SET NULL`, composite unique index `uq_reports_reporter_target`.
+   - `ModerationLog` append-only audit trail (`admin_id` SET NULL, `action`, `target_type`, `target_id`, `notes`).
+   - `Post` and `Comment` models updated with `is_hidden` boolean flag.
+2. **Database Migration (`P4-02`):**
+   - Applied Alembic revision `6a912f8eac82`.
+   - Tested upgrade/downgrade round-trip on isolated database `campus_connect_p4_test2`.
+   - Applied to PostgreSQL `campus_connect` at head; verified all existing users, connections, and community records intact.
+3. **Pydantic Schemas (`P4-03`):**
+   - `schemas/announcement.py` and `schemas/admin.py` with typed models for reports, moderation requests, user status updates, and stats.
+4. **Announcements API (`P4-04` & `P4-05`):**
+   - Full CRUD under `/api/v1/announcements` with student read, keyword search, category filtering, draft visibility control, and admin pin/publish toggles.
+5. **Admin & Moderation API (`P4-06`):**
+   - `/api/v1/admin/stats` overview, `/api/v1/admin/users` directory, `/api/v1/admin/users/{id}/status` toggle with self-deactivation and last-admin safeguards.
+   - Immediate 403 enforcement across all protected APIs when `is_active` is False.
+   - Moderation actions (`hide`, `remove`, `dismiss`) with atomic transactions and audit logging.
+6. **Frontend Announcements UI (`P4-07` & `P4-09`):**
+   - `frontend/src/pages/Announcements.jsx` with category filter tabs, debounced search, pinned notice badges, admin modal composer, and inline publish toggling.
+7. **Frontend Admin Dashboard UI (`P4-08` & `P4-10`):**
+   - `frontend/src/pages/AdminDashboard.jsx` with 5 metric cards, searchable User Directory with active toggle, and Moderation Queue.
+   - `frontend/src/components/AdminRoute.jsx` route guard and role-gated sidebar link in `AppLayout.jsx` with `overflow-y-auto`.
+8. **Automated Verification:**
+   - Backend `pytest`: 57/57 passed (100% in 7.61s).
+   - Frontend `Vitest`: 13/13 passed (100% in 4.37s).
+   - ESLint: 0 errors, 0 warnings.
+   - Vite production build: clean build in 649ms.
+   - Playwright E2E: Real headless Chrome test passed all student and admin workflows.
 
 ---
 
-## 4. Pending Tasks (Phase 4 — Announcements & Admin)
+## 4. Pending Tasks (Phase 5 — Real-Time Messaging)
 
 Do **not** begin until explicitly approved by the user:
-1. **P4-01:** Create Announcement model (`backend/app/models/announcement.py`).
-2. **P4-02:** Create Alembic migration for announcements (and optional moderation/report table per `FR-ADM-1`/`FR-ADM-5`).
-3. **P4-03:** Create announcement schemas (`backend/app/schemas/announcement.py`).
-4. **P4-04:** Create admin announcement CRUD API with role guard (reconcile `"admin"` vs SRS `"administrator"` role naming).
-5. **P4-05:** Create student announcement read & filter API.
-6. **P4-06:** Create admin user management endpoint (list users, manage roles/active status per `FR-ADM-3`).
-7. **P4-07:** Create Announcements page (`frontend/src/pages/Announcements.jsx`).
-8. **P4-08:** Create Admin Dashboard (`frontend/src/pages/AdminDashboard.jsx`).
-9. **P4-09:** Create announcement editor UI.
-10. **P4-10:** Add role-gated Admin Dashboard navigation item in `AppLayout.jsx` / `App.jsx`.
+1. **P5-01:** Create Conversation model (`backend/app/models/conversation.py`).
+2. **P5-02:** Create Message model (`backend/app/models/message.py`).
+3. **P5-03:** Create Alembic migration (messaging).
+4. **P5-04:** Create message schemas (`backend/app/schemas/message.py`).
+5. **P5-05:** Create conversation API (list conversations, start DM).
+6. **P5-06:** Create message REST API (paginated history).
+7. **P5-07:** Create WebSocket endpoint (`api/websocket.py`).
+8. **P5-08:** Create WebSocket connection manager (`core/websocket.py`).
+9. **P5-09:** Mark messages as read (`is_read`).
+10. **P5-10:** Create Messages page (`frontend/src/pages/Messages.jsx`).
+11. **P5-11:** Create conversation list component.
+12. **P5-12:** Create chat window component.
+13. **P5-13:** Create message input with typing indicator.
+14. **P5-14:** Implement WebSocket client hook (`useWebSocket.js`).
+15. **P5-15:** Handle online/offline status.
 
-**Other Outstanding SRS Requirements Tracked Outside Phase 3:**
-- `FR-AUTH-3` & `FR-AUTH-5`: Refresh tokens and server-side token invalidation on logout (Phase 7 Security Hardening).
-- `FR-AUTH-1`: Institutional email domain restriction/verification (Phase 4/7).
-- Frontend stack divergence (current React 19 JS + Tailwind v4 + Axios vs SRS 5.3 TypeScript + shadcn/ui + TanStack Query — decision requested from user).
+---
+
+## 5. Verification Commands
+
+### Backend tests:
+```powershell
+cd "c:\Users\Lenovo\Desktop\Campus Connect\backend"
+.\venv\Scripts\python.exe -m pytest tests/ -v --tb=short
+```
+
+### Frontend tests, lint & build:
+```powershell
+cd "c:\Users\Lenovo\Desktop\Campus Connect\frontend"
+npm test
+npm run lint
+npm run build
+```
+
+### Alembic status:
+```powershell
+cd "c:\Users\Lenovo\Desktop\Campus Connect\backend"
+.\venv\Scripts\python.exe -m alembic current
+```
 
 ---
 

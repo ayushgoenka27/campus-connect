@@ -11,6 +11,7 @@ import {
   MessageCircle,
   Search,
   Settings,
+  Shield,
   Sparkles,
   Users,
   X,
@@ -41,6 +42,7 @@ export default function AppLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [mobileMenu, setMobileMenu] = useState(false);
+  const isAdmin = user?.role === "admin" || user?.role === "administrator";
 
   const handleLogout = () => {
     logout();
@@ -72,7 +74,7 @@ export default function AppLayout() {
 
       {/* ── Sidebar ───────────────────────────────────────────── */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-[270px] flex-col border-r border-slate-200 bg-white px-5 py-6 transition-transform duration-300 lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-[270px] flex-col overflow-y-auto border-r border-slate-200 bg-white px-5 py-6 transition-transform duration-300 lg:translate-x-0 ${
           mobileMenu ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -131,6 +133,31 @@ export default function AppLayout() {
             );
           })}
         </nav>
+
+        {/* Admin Navigation (Role-Gated) */}
+        {isAdmin && (
+          <div className="mt-4 pt-3 border-t border-slate-100">
+            <div className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-purple-600">
+              Governance
+            </div>
+            <NavLink
+              to="/admin"
+              className={navLinkClass}
+              onClick={() => setMobileMenu(false)}
+            >
+              {({ isActive }) => (
+                <>
+                  <Shield
+                    size={18}
+                    strokeWidth={isActive ? 2.2 : 1.9}
+                    className={navIconClass(isActive)}
+                  />
+                  Admin Console
+                </>
+              )}
+            </NavLink>
+          </div>
+        )}
 
         {/* Bottom section */}
         <div className="mt-auto">

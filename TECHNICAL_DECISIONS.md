@@ -164,3 +164,34 @@
 **Resolution:** Updated `get_current_admin()` to check `current_user.role not in ("admin", "administrator")`. No Alembic migration required (the `role` column is an unconstrained `String`, not an `Enum`).  
 **Date:** 2026-11-11
 
+---
+
+## TD-018: Report History & Immutable Snapshot Preservation
+
+**Decision:** The `reports` table stores immutable snapshot fields (`target_type`, `target_id`, `target_preview`, `target_author_id`) alongside nullable foreign keys (`post_id`, `comment_id`) configured with `ON DELETE SET NULL`. Do not use a database-level `CHECK ((post_id IS NOT NULL) != (comment_id IS NOT NULL))` constraint.
+
+**Rationale:** When a reported post or comment is deleted (via moderation or author deletion), the live foreign key becomes NULL via `ON DELETE SET NULL`. A strict single-target check constraint would fail upon deletion, either preventing content deletion or cascading report deletion. Storing immutable target metadata preserves historical audit evidence for moderators even if the reported content no longer exists. Duplicate prevention is enforced via composite unique index `uq_reports_reporter_target` on `(reporter_id, target_type, target_id)`.  
+**Date:** 2026-11-11
+
+---
+
+## TD-019: Announcement Author Preservation
+
+**Decision:** The `author_id` foreign key in the `announcements` table uses `ON DELETE SET NULL` (not `CASCADE`), and is nullable.
+
+**Rationale:** Announcements represent institutional notices (campus circulars, academic schedules, placement notices). If an administrator account is deleted or removed from the institution, existing announcements should remain visible to students with author metadata falling back to institutional defaults, rather than being deleted by database cascades.  
+**Date:** 2026-11-11
+
+---
+
+## TD-020: Admin Account Safeguards & Inactive Access Invalidation
+
+**Decision:** 
+1. Server-side validation blocks administrators from deactivating their own account.
+2. Server-side validation blocks deactivating the last active administrator.
+3. Account deactivation immediately revokes access across all protected endpoints by having `get_current_user` verify `is_active is True` and return `HTTP 403 Forbidden` if false.
+
+**Rationale:** Prevents administrative lock-out scenarios where no active administrators exist to manage the system. Checking `is_active` at request resolution in `get_current_user` guarantees immediate token invalidation for deactivated accounts without requiring token blocklist infrastructure.  
+**Date:** 2026-11-11
+
+

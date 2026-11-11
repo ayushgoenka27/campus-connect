@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -35,6 +35,14 @@ class Post(Base):
     image_url: Mapped[str | None] = mapped_column(
         String(500),
         nullable=True,
+    )
+
+    is_hidden: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        # Set to True by admin moderation (FR-ADM-2); content is not deleted,
+        # preserving report history. Hidden posts are excluded from public feeds.
     )
 
     created_at: Mapped[datetime] = mapped_column(

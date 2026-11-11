@@ -6,7 +6,15 @@ from alembic import context
 
 from app.models.base import Base
 from app.models.user import User
+from app.models.announcement import Announcement
+from app.models.report import Report
+from app.models.moderation_log import ModerationLog
 from app.core.config import settings
+# Post, Comment, Like, Connection imported via their modules so metadata is populated
+import app.models.post
+import app.models.comment
+import app.models.like
+import app.models.connection
 
 
 config = context.config

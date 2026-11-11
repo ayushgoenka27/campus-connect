@@ -1,11 +1,14 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
+import AdminRoute from "./components/AdminRoute";
 import AppLayout from "./layout/AppLayout";
 import Dashboard from "./pages/Dashboard";
 import Discover from "./pages/Discover";
 import Connections from "./pages/Connections";
 import Community from "./pages/Community";
+import Announcements from "./pages/Announcements";
+import AdminDashboard from "./pages/AdminDashboard";
 import Profile from "./pages/Profile";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -45,15 +48,7 @@ export default function App() {
                   />
                 }
               />
-              <Route
-                path="/announcements"
-                element={
-                  <ComingSoon
-                    title="Announcements"
-                    description="Official department and university notices."
-                  />
-                }
-              />
+              <Route path="/announcements" element={<Announcements />} />
               <Route
                 path="/resources"
                 element={
@@ -73,6 +68,11 @@ export default function App() {
                   />
                 }
               />
+
+              {/* Admin-only routes */}
+              <Route element={<AdminRoute />}>
+                <Route path="/admin" element={<AdminDashboard />} />
+              </Route>
             </Route>
           </Route>
 

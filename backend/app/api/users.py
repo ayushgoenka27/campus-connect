@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_current_user_id
+from app.core.dependencies import get_current_user, get_current_user_id
 from app.db.dependencies import get_db
 from app.models.connection import Connection
 from app.models.user import User
@@ -25,18 +25,9 @@ router = APIRouter(
     response_model=CurrentUserProfileResponse,
 )
 def get_my_profile(
-    user_id: int = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    user = db.scalar(select(User).where(User.id == user_id))
-
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )
-
-    return user
+    return current_user
 
 
 @router.patch(
@@ -45,28 +36,20 @@ def get_my_profile(
 )
 def update_my_profile(
     data: UpdateProfileRequest,
-    user_id: int = Depends(get_current_user_id),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    user = db.scalar(select(User).where(User.id == user_id))
-
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )
-
     update_data = data.model_dump(exclude_unset=True)
 
     for field, value in update_data.items():
-        setattr(user, field, value)
+        setattr(current_user, field, value)
 
     db.commit()
-    db.refresh(user)
+    db.refresh(current_user)
 
     return {
         "message": "Profile updated successfully",
-        "user": user,
+        "user": current_user,
     }
 
 
@@ -76,9 +59,10 @@ def update_my_profile(
 )
 def get_user_profile(
     user_id: int,
-    current_user_id: int = Depends(get_current_user_id),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    current_user_id = current_user.id
     user = db.scalar(
         select(User).where(
             User.id == user_id,
@@ -131,9 +115,10 @@ def get_users(
     year: int | None = None,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
-    user_id: int = Depends(get_current_user_id),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    user_id = current_user.id
     query = (
         select(User)
         .where(User.is_active == True)

@@ -15,6 +15,47 @@ Format:
 
 ---
 
+## [2026-11-12] — Phase 4 Announcements & Admin Module Complete
+
+### Added
+- `backend/app/models/announcement.py` — `Announcement` ORM model (`author_id` FK with `ON DELETE SET NULL` to survive admin removal, `title`, `content`, `category`, `is_published`, `is_pinned`, timestamps).
+- `backend/app/models/report.py` — `Report` ORM model with immutable target snapshot fields (`target_type`, `target_id`, `target_preview`, `target_author_id`), nullable `post_id`/`comment_id` FKs (`ON DELETE SET NULL`), and composite unique index `uq_reports_reporter_target` on `(reporter_id, target_type, target_id)`.
+- `backend/app/models/moderation_log.py` — `ModerationLog` append-only audit trail model (`admin_id` FK with `ON DELETE SET NULL`, `action`, `target_type`, `target_id`, `notes`, `created_at`).
+- `backend/app/models/post.py` & `comment.py` — Added `is_hidden: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)` for moderation.
+- `backend/migrations/versions/6a912f8eac82_add_announcements_reports_moderation_.py` — Alembic revision adding `announcements`, `reports`, `moderation_logs` tables and `is_hidden` column with `server_default=sa.text('false')`.
+- `backend/app/schemas/announcement.py` — Pydantic schemas for announcement creation, updates, and serialized responses with author info.
+- `backend/app/schemas/admin.py` — Pydantic schemas for reports (`ReportCreate`, `ReportResponse`), moderation requests, user status updates, user listings, and platform metrics (`AdminStats`).
+- `backend/app/api/announcements.py` — Announcements REST API (`/api/v1/announcements`): student read with category and keyword search, draft filtering (drafts hidden for non-admins), admin CRUD, pinning, and quick publish toggling.
+- `backend/app/api/reports.py` — Reports REST API (`/api/v1/reports`): submission with single-target validation, duplicate detection (409), self-reporting prevention (400), and `/reports/my` endpoint.
+- `backend/app/api/admin.py` — Admin REST API (`/api/v1/admin`): platform overview stats (`GET /stats`), user directory (`GET /users`), account activation/deactivation (`PATCH /users/{id}/status` with self-deactivation and last-admin safeguards), and moderation queue actions (`PATCH /reports/{id}` for hide, remove, dismiss with audit logging).
+- `frontend/src/components/AdminRoute.jsx` — Route guard restricting admin console routes to users with `role` `"admin"` or `"administrator"`, redirecting unauthorized users to `/`.
+- `frontend/src/pages/Announcements.jsx` — Announcements view with category filter tabs (All, Academic, Events, Urgent, Placement, General), search bar, pinned notices, and administrative composer/editor modal, inline publish toggling, and deletion.
+- `frontend/src/pages/AdminDashboard.jsx` — Administrator governance portal with 5 live platform metric cards, searchable User Directory with role filters and account activation toggle, and Moderation Queue with hide/remove/dismiss actions.
+- `backend/tests/test_announcements.py` — 37 automated backend test cases covering announcement RBAC/CRUD, student filtering, report lifecycle & duplicate prevention, report preservation after content deletion, admin stats, user deactivation & safeguards, moderation actions, and audit logs.
+- `frontend/src/tests/Announcements.test.jsx` & `AdminDashboard.test.jsx` — 7 component tests covering announcement rendering, category filtering, search, admin modal submission, metric cards, user status toggling, and moderation queue handling.
+- `scratch/p4_browser_e2e.py` — Headless Chrome Playwright E2E suite verifying full student RBAC gating and administrator operations against live FastAPI + PostgreSQL + Vite.
+
+### Fixed / Changed
+- `backend/app/api/auth.py` & `backend/app/api/users.py`:
+  - Enforced `is_active` check across `/auth/login`, `/auth/me`, and `/users/me`. Deactivated accounts immediately receive `HTTP 403 Forbidden` on all protected endpoints.
+- `backend/app/main.py`: Mounted `announcements_router`, `reports_router`, and `admin_router` under `/api/v1`.
+- `frontend/src/App.jsx`: Mounted `/announcements` and protected `/admin` route with `AdminRoute`.
+- `frontend/src/layout/AppLayout.jsx`: Added Announcements navigation link, role-gated "Admin Console" section with shield icon for administrators, and `overflow-y-auto` on sidebar.
+
+### Database Changes
+- Applied `6a912f8eac82` on PostgreSQL `campus_connect` (head revision).
+- Migration round-trip (`upgrade head` -> `downgrade` -> `upgrade head`) verified on isolated temporary test database `campus_connect_p4_test2`.
+- Preserved existing PostgreSQL records (6 users, 2 connections, 0 posts intact).
+
+### Tests Executed
+- Backend `pytest tests/ -v`: **57/57 passed** (100% pass rate in 7.61s).
+- Frontend `npm test` (Vitest + RTL): **13/13 passed** (100% pass rate in 4.37s).
+- Frontend `npm run lint`: **0 errors, 0 warnings**.
+- Frontend `npm run build`: **clean build in 649ms** (1,896 modules).
+- Live Browser UI E2E (Playwright + Chrome against live PostgreSQL): **all student and administrator workflows passed**.
+
+---
+
 ## [2026-11-11] — Phase 3 Community Module & SRS Remediation
 
 ### Added

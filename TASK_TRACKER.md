@@ -1,6 +1,6 @@
 # Campus Connect — Task Tracker
 
-**Last Updated:** 2026-11-11 (Phase 3 + SRS remediation complete)
+**Last Updated:** 2026-11-12 (Phase 4 complete)
 
 Legend: ⬜ Not Started | 🔄 In Progress | 🚧 Blocked | ✅ Implemented | 🧪 Tested | ✔️ Completed
 
@@ -82,16 +82,16 @@ Legend: ⬜ Not Started | 🔄 In Progress | 🚧 Blocked | ✅ Implemented | �
 
 | ID | Task | Status | Notes |
 |----|------|--------|-------|
-| P4-01 | Create Announcement model | ⬜ Not Started | `models/announcement.py` |
-| P4-02 | Create Alembic migration (announcements) | ⬜ Not Started | — |
-| P4-03 | Create announcement schemas | ⬜ Not Started | `schemas/announcement.py` |
-| P4-04 | Create announcement API (admin) | ⬜ Not Started | CRUD with role check |
-| P4-05 | Create announcement API (student) | ⬜ Not Started | Public read + filter |
-| P4-06 | Admin user management endpoint | ⬜ Not Started | List users, change roles |
-| P4-07 | Create Announcements page | ⬜ Not Started | `src/pages/Announcements.jsx` |
-| P4-08 | Create Admin Dashboard | ⬜ Not Started | `src/pages/AdminDashboard.jsx` |
-| P4-09 | Create announcement editor | ⬜ Not Started | Admin CRUD UI |
-| P4-10 | Add admin nav item (role-gated) | ⬜ Not Started | Only visible to admins |
+| P4-01 | Create Announcement model | ✔️ Completed | `models/announcement.py` (author_id SET NULL), `report.py`, `moderation_log.py`, `is_hidden` on Post/Comment |
+| P4-02 | Create Alembic migration (announcements) | ✔️ Completed | Revision `6a912f8eac82` applied; upgrade/downgrade verified on isolated test DB |
+| P4-03 | Create announcement schemas | ✔️ Completed | `schemas/announcement.py`, `schemas/admin.py` (Report, Moderation, UserStatus, Stats) |
+| P4-04 | Create announcement API (admin) | ✔️ Completed | `POST`, `PATCH`, `PATCH /publish`, `DELETE` with `get_current_admin` RBAC |
+| P4-05 | Create announcement API (student) | ✔️ Completed | `GET` with category and keyword search; drafts excluded for non-admins |
+| P4-06 | Admin user management endpoint | ✔️ Completed | `GET /admin/users`, `PATCH /users/{id}/status` with self-deactivation & last-admin safeguards; immediate 403 on deactivation |
+| P4-07 | Create Announcements page | ✔️ Completed | `src/pages/Announcements.jsx` (category tabs, search, pinned notices, admin actions) |
+| P4-08 | Create Admin Dashboard | ✔️ Completed | `src/pages/AdminDashboard.jsx` (metric cards, user directory with status toggle, moderation queue) |
+| P4-09 | Create announcement editor | ✔️ Completed | Modal composer in `Announcements.jsx` for create and inline editing |
+| P4-10 | Add admin nav item (role-gated) | ✔️ Completed | `AdminRoute.jsx` route guard, role-gated sidebar link in `AppLayout.jsx` for `"admin"` and `"administrator"` |
 
 ---
 
@@ -168,9 +168,9 @@ Legend: ⬜ Not Started | 🔄 In Progress | 🚧 Blocked | ✅ Implemented | �
 | Phase 1 | 14 | 14 | 0 | 0 |
 | Phase 2 | 7 | 7 | 0 | 0 |
 | Phase 3 | 13 | 13 | 0 | 0 |
-| Phase 4 | 10 | 0 | 0 | 0 |
+| Phase 4 | 10 | 10 | 0 | 0 |
 | Phase 5 | 15 | 0 | 0 | 0 |
 | Phase 6 | 13 | 0 | 0 | 0 |
 | Phase 7 | 16 | 0 | 0 | 0 |
-| **Total** | **98** | **44** | **0** | **0** |
+| **Total** | **98** | **54** | **0** | **0** |
 

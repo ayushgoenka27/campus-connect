@@ -5,6 +5,9 @@ from app.api.auth import router as auth_router
 from app.api.users import router as users_router
 from app.api.connections import router as connections_router
 from app.api.posts import router as posts_router
+from app.api.announcements import router as announcements_router
+from app.api.reports import router as reports_router
+from app.api.admin import router as admin_router
 
 
 app = FastAPI(
@@ -46,6 +49,21 @@ app.include_router(
 
 app.include_router(
     posts_router,
+    prefix="/api/v1",
+)
+
+app.include_router(
+    announcements_router,
+    prefix="/api/v1",
+)
+
+app.include_router(
+    reports_router,
+    prefix="/api/v1",
+)
+
+app.include_router(
+    admin_router,
     prefix="/api/v1",
 )
 

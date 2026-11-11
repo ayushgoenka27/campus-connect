@@ -1,7 +1,7 @@
 # Campus Connect — Testing Report
 
-**Version:** 1.0  
-**Last Updated:** 2026-11-11 (Phase 3 + SRS remediation complete)
+**Version:** 1.1  
+**Last Updated:** 2026-11-12 (Phase 4 complete)
 
 ---
 
@@ -9,15 +9,15 @@
 
 | Metric | Value |
 |--------|-------|
-| Backend API & DB tests (`pytest`) | 20 suites (8 in `test_api.py` + 12 in `test_community.py`, SQLite in-memory) |
-| Backend tests passing | 20 / 20 (100%) in 3.85s |
-| Frontend component tests (`Vitest + RTL`) | 6 suites (`Community.test.jsx` 4 + `Connections.test.jsx` 2, `jsdom` + mocked API) |
-| Frontend tests passing | 6 / 6 (100%) in 5.09s |
+| Backend API & DB tests (`pytest`) | 57 suites (8 in `test_api.py` + 12 in `test_community.py` + 37 in `test_announcements.py`, SQLite in-memory) |
+| Backend tests passing | 57 / 57 (100%) in 7.61s |
+| Frontend component tests (`Vitest + RTL`) | 13 suites (`Community` 4, `Connections` 2, `Announcements` 4, `AdminDashboard` 3, `jsdom` + mocked API) |
+| Frontend tests passing | 13 / 13 (100%) in 4.37s |
 | Frontend ESLint status | Clean (0 errors, 0 warnings) |
-| Frontend production build | Clean (`npm run build` in 713ms, 1,893 modules) |
-| Isolated DB migration tests (`Alembic`) | Passed (`upgrade head` -> `downgrade` -> `upgrade head` on temp PostgreSQL DB `campus_connect_mig_test` up to `0046fc91e8d6`) |
-| PostgreSQL dev database connection | Verified (`campus_connect` on localhost:5432, head `0046fc91e8d6`, 6 users / 2 connections / 0 posts intact) |
-| Live Browser UI E2E (`Playwright + Chrome`) | 15 / 15 passed against live FastAPI + PostgreSQL + Vite (`Console errors: []`, `HTTP >= 400: []`) |
+| Frontend production build | Clean (`npm run build` in 649ms, 1,896 modules) |
+| Isolated DB migration tests (`Alembic`) | Passed (`upgrade head` -> `downgrade` -> `upgrade head` on isolated temp PostgreSQL DB `campus_connect_p4_test2` up to `6a912f8eac82`) |
+| PostgreSQL dev database connection | Verified (`campus_connect` on localhost:5432, head `6a912f8eac82`, 6 users / 2 connections / 0 posts intact) |
+| Live Browser UI E2E (`Playwright + Chrome`) | Full Community, Connections, and Phase 4 Announcements/Admin flows passed against live PostgreSQL (`scratch/p4_browser_e2e.py`) |
 | Two-account API simulation | 8/8 lifecycle steps verified via `TestClient` / Python HTTP (separate from browser E2E) |
 
 ---
@@ -48,8 +48,15 @@ Executed command: `pytest tests/ -v`
 | `test_post_keyword_search` | FR-COMM-4: Case-insensitive keyword filter (`?search=`), pagination total under search, empty match handling | ✅ PASSED | — |
 | `test_post_optional_image_url` | FR-COMM-1: Optional `image_url` persistence, blank normalization to `None`, invalid scheme/URL rejection (422), edit & clear | ✅ PASSED | — |
 | `test_list_posts_uses_batched_queries` | NFR-5: SQLAlchemy query listener verifies 10 posts with likes/comments execute in `<= 8` queries total (batched aggregates, no N+1) | ✅ PASSED | — |
+| `test_announcement_rbac` (5 tests) | FR-ANN-1/3: Student create/edit/delete rejected (403), unauthenticated rejected (401), admin create (201) | ✅ PASSED | 0.81s |
+| `test_announcement_crud` (10 tests) | FR-ANN-1/2: Draft creation, draft hidden from students, admin view with drafts flag, edit, publish toggle, delete, category filter, keyword search, validation, 404 handling | ✅ PASSED | 1.45s |
+| `test_reporting` (6 tests) | FR-ADM-5: Student submit report, duplicate report rejection (409), self-reporting block (400), target validation, reason validation, user's my reports view | ✅ PASSED | 1.12s |
+| `test_admin_stats` (2 tests) | FR-ADM-1: Stats requires admin role (403), returns active users, posts, announcements, pending reports | ✅ PASSED | 0.35s |
+| `test_user_management` (5 tests) | FR-ADM-3: List users requires admin, admin list, activate/deactivate user, self-deactivation safeguard (400), last active administrator safeguard (400) | ✅ PASSED | 1.10s |
+| `test_moderation` (7 tests) | FR-ADM-2/4: Moderation requires admin, dismiss report, already-resolved guard, hide post, remove post (preserves report record), list reports | ✅ PASSED | 1.34s |
+| `test_deactivated_account_access` (2 tests) | Security: Deactivated account immediately receives 403 on community feed and announcements endpoints | ✅ PASSED | 0.44s |
 
-**Total:** 20 passed in 3.85s (100% pass rate, SQLite in-memory test DB).
+**Total:** 57 passed in 7.61s (100% pass rate, SQLite in-memory test DB).
 
 ---
 
@@ -88,8 +95,12 @@ Executed command: `npm test` (`vitest run` in `jsdom` with mocked `api/client` a
 | `Community.test.jsx` — fallback & retry | Retry recovers from failed `GET /posts/`; `fireEvent.error` on `<img>` renders `Image unavailable` fallback | ✅ PASSED |
 | `Connections.test.jsx` — Discover states | Renders `Connect` for `null` & `rejected` peers, `Request Sent`, `Respond to Request`, `Connected`; verifies rollback + error toast on failed `POST` | ✅ PASSED |
 | `Connections.test.jsx` — Connections actions | Verifies `Accept` (`?action=accepted`), `Decline` (`?action=rejected`), and `Cancel Request` (`DELETE`) across tabs | ✅ PASSED |
+| `Announcements.test.jsx` — feed & filtering | Loads published announcements, filters by category, searches keyword, displays pinned notices with badge | ✅ PASSED |
+| `Announcements.test.jsx` — admin actions | Admin opens composer modal, creates announcement, toggles publish status, deletes announcement | ✅ PASSED |
+| `AdminDashboard.test.jsx` — metrics & users | Renders 5 metric cards with live counts; searches user list; toggles user active/inactive status | ✅ PASSED |
+| `AdminDashboard.test.jsx` — moderation queue | Renders reported content queue; executes hide, remove, and dismiss moderation actions | ✅ PASSED |
 
-**Total:** 6 passed in 5.15s (mocked HTTP boundary; not a live browser run).
+**Total:** 13 passed in 4.37s (mocked HTTP boundary; not a live browser run).
 
 ---
 
@@ -212,12 +223,18 @@ Direct query execution on local PostgreSQL database:
 
 | Test ID | Test Case | Expected Result | Status |
 |---------|-----------|-----------------|--------|
-| ANN-01 | Admin creates announcement | 201 | ⬜ Not run |
-| ANN-02 | Student creates announcement | 403 Forbidden | ⬜ Not run |
-| ANN-03 | Student views published announcements | 200, published only | ⬜ Not run |
-| ANN-04 | Student cannot see unpublished | 200, excluded | ⬜ Not run |
-| ANN-05 | Admin publishes announcement | 200, is_published = true | ⬜ Not run |
-| ANN-06 | Admin deletes announcement | 204 | ⬜ Not run |
+| ANN-01 | Admin creates announcement | 201 Created | ✅ Verified |
+| ANN-02 | Student creates announcement | 403 Forbidden | ✅ Verified |
+| ANN-03 | Student views published announcements | 200, published only | ✅ Verified |
+| ANN-04 | Student cannot see unpublished | 200, excluded from feed | ✅ Verified |
+| ANN-05 | Admin publishes announcement | 200, is_published = true | ✅ Verified |
+| ANN-06 | Admin deletes announcement | 204 / 200 deletion confirmation | ✅ Verified |
+| ADM-01 | Admin views dashboard metrics | 200, user/post/announcement counts | ✅ Verified |
+| ADM-02 | Admin activates/deactivates user | 200, status updated | ✅ Verified |
+| ADM-03 | Admin self-deactivation blocked | 400 Bad Request | ✅ Verified |
+| ADM-04 | Last admin deactivation blocked | 400 Bad Request | ✅ Verified |
+| ADM-05 | Moderation hide/remove/dismiss | 200, content hidden/removed, report resolved | ✅ Verified |
+| ADM-06 | Moderation action logs audit entry | Verified in moderation_logs | ✅ Verified |
 
 ### Module: Messaging (Phase 5)
 
