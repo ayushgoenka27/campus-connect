@@ -15,7 +15,7 @@ Format:
 
 ---
 
-## [2026-11-15] — Phase 5 Real-Time Messaging Module Complete
+## [2026-11-15] — Phase 5 Real-Time Messaging Module Complete (commit 3e3ba53)
 
 ### Added
 - `backend/app/models/conversation.py` — `Conversation` ORM model (`user1_id` FK, `user2_id` FK, `last_message_at`, timestamps) with symmetric unique index `uq_conversations_user_pair` on `(LEAST(user1_id, user2_id), GREATEST(user1_id, user2_id))` to guarantee exactly one conversation per user pair.
