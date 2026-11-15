@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from app.core.config import settings
 from app.core.dependencies import get_current_user_id, get_current_user as get_authenticated_user
+from app.core.rate_limit import rate_limit
 from app.core.security import (
     create_access_token,
     hash_password,
@@ -31,11 +33,22 @@ router = APIRouter(
     "/register",
     response_model=RegisterResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(rate_limit(times=15, seconds=60, key="auth_register"))],
 )
 def register(
     data: RegisterRequest,
     db: Session = Depends(get_db),
 ):
+    # Optional institutional email domain check (FR-AUTH-1)
+    if settings.allowed_email_domains:
+        domain = data.email.split("@")[-1].lower()
+        allowed = [d.lower() for d in settings.allowed_email_domains]
+        if domain not in allowed:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Registration restricted to institutional domains: {', '.join(settings.allowed_email_domains)}",
+            )
+
     existing_user = db.scalar(
         select(User).where(
             (User.email == data.email)
@@ -69,6 +82,7 @@ def register(
 @router.post(
     "/login",
     response_model=TokenResponse,
+    dependencies=[Depends(rate_limit(times=15, seconds=60, key="auth_login"))],
 )
 def login(
     data: LoginRequest,
@@ -107,6 +121,7 @@ def login(
 @router.post(
     "/change-password",
     response_model=ChangePasswordResponse,
+    dependencies=[Depends(rate_limit(times=10, seconds=60, key="auth_change_password"))],
 )
 async def change_password(
     data: ChangePasswordRequest,
@@ -149,6 +164,31 @@ async def change_password(
         "message": "Password changed successfully",
         "access_token": new_token,
         "token_type": "bearer",
+    }
+
+
+@router.post(
+    "/logout",
+    status_code=status.HTTP_200_OK,
+)
+async def logout(
+    current_user: User = Depends(get_authenticated_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Genuine server-side JWT revocation (FR-AUTH-5, TD-024).
+    Increments token_version in PostgreSQL, invalidating the current
+    access token (and any other sessions using this token_version) for both
+    REST endpoints and WebSocket connections, and closes all active WebSockets.
+    """
+    current_user.token_version = getattr(current_user, "token_version", 1) + 1
+    db.commit()
+    db.refresh(current_user)
+
+    await manager.disconnect_user(current_user.id, code=1008)
+
+    return {
+        "message": "Logged out successfully; session invalidated",
     }
 
 

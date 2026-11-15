@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
+import ErrorBoundary from "./components/ErrorBoundary";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
 import AppLayout from "./layout/AppLayout";
@@ -19,8 +20,9 @@ import Register from "./pages/Register";
 
 export default function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
+    <ErrorBoundary>
+      <AuthProvider>
+        <BrowserRouter>
         <Routes>
           {/* Public routes */}
           <Route path="/login" element={<Login />} />
@@ -52,5 +54,6 @@ export default function App() {
         </Routes>
       </BrowserRouter>
     </AuthProvider>
+  </ErrorBoundary>
   );
 }

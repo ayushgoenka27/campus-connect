@@ -137,26 +137,26 @@ Legend: ⬜ Not Started | 🔄 In Progress | 🚧 Blocked | ✅ Implemented | �
 
 ---
 
-## PHASE 7 — Testing, Documentation & Deployment
+## PHASE 7 — Testing, Hardening & Deployment
 
 | ID | Task | Status | Notes |
 |----|------|--------|-------|
-| P7-01 | Install pytest + httpx + pytest-asyncio | ⬜ Not Started | `requirements.txt` |
-| P7-02 | Write auth tests | ⬜ Not Started | `tests/test_auth.py` |
-| P7-03 | Write user tests | ⬜ Not Started | `tests/test_users.py` |
-| P7-04 | Write connection tests | ⬜ Not Started | `tests/test_connections.py` |
-| P7-05 | Write community tests | ⬜ Not Started | `tests/test_posts.py` |
-| P7-06 | Write announcement tests | ⬜ Not Started | `tests/test_announcements.py` |
-| P7-07 | Write messaging tests | ⬜ Not Started | `tests/test_messages.py` |
-| P7-08 | Write authorization tests | ⬜ Not Started | RBAC 403 responses |
-| P7-09 | Create Dockerfile (backend) | ⬜ Not Started | — |
-| P7-10 | Create Dockerfile (frontend) | ⬜ Not Started | — |
-| P7-11 | Create docker-compose.yml | ⬜ Not Started | Full stack |
-| P7-12 | Write README | ⬜ Not Started | Complete documentation |
-| P7-13 | Add API endpoint documentation | ⬜ Not Started | Via FastAPI annotations |
-| P7-14 | Create architecture diagram | ⬜ Not Started | `docs/` |
-| P7-15 | Create ER diagram | ⬜ Not Started | `docs/` |
-| P7-16 | Create seed data for demo | ⬜ Not Started | Demo workflow |
+| P7-01 | Full user journey automated E2E test script | ⬜ Not Started | Multi-module browser integration |
+| P7-02 | Multi-browser compatibility verification | ⬜ Not Started | Chrome, Edge engines |
+| P7-03 | Security headers, CSP & CORS configuration | ✔️ Completed | `SecurityHeadersMiddleware`, CSP, CORS validation |
+| P7-04 | API rate limiting on sensitive endpoints | ✔️ Completed | Sliding-window limiter on login/register/password change |
+| P7-05 | Input sanitization, URL scheme checks & injection audit | ✔️ Completed | Scheme validation, parameterized queries |
+| P7-06 | Error boundaries, log masking & server-side logout | ✔️ Completed | React `ErrorBoundary`, 500 sanitization, `POST /auth/logout` |
+| P7-07 | Database query audit, EXPLAIN ANALYZE & N+1 elimination | ⬜ Not Started | Hot path optimizations |
+| P7-08 | Index coverage & connection pool tuning | ⬜ Not Started | Production database indexing |
+| P7-09 | Frontend route lazy loading & bundle optimization | ⬜ Not Started | `React.lazy` + `Suspense` code splitting |
+| P7-10 | Backend multi-stage production Dockerfile | ⬜ Not Started | Python 3.11-slim, unprivileged user |
+| P7-11 | Frontend production Dockerfile & Nginx SPA config | ⬜ Not Started | Nginx static serving + SPA fallback |
+| P7-12 | Docker Compose full stack orchestration | ⬜ Not Started | Backend, Frontend, Postgres, networks |
+| P7-13 | Production DB migration script & backup/restore runbook | ⬜ Not Started | Automation scripts & rollback runbook |
+| P7-14 | Zero-downtime healthcheck probes (/health & /health/db) | ✔️ Completed | Liveness & readiness probes |
+| P7-15 | Author DEPLOYMENT.md deployment guide & runbooks | ⬜ Not Started | Comprehensive operations manual |
+| P7-16 | Architecture diagrams, SRS traceability matrix & demo guide | ⬜ Not Started | Documentation & handover assets |
 
 ---
 
@@ -171,7 +171,7 @@ Legend: ⬜ Not Started | 🔄 In Progress | 🚧 Blocked | ✅ Implemented | �
 | Phase 4 | 10 | 10 | 0 | 0 |
 | Phase 5 | 15 | 15 | 0 | 0 |
 | Phase 6 | 13 | 13 | 0 | 0 |
-| Phase 7 | 16 | 0 | 0 | 0 |
-| **Total** | **98** | **82** | **0** | **0** |
+| Phase 7 | 16 | 5 | 0 | 0 |
+| **Total** | **98** | **87** | **0** | **0** |
 
                                         

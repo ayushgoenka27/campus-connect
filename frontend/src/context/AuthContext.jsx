@@ -75,11 +75,19 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem("campus_connect_token");
-    setToken(null);
-    setUser(null);
-  }, []);
+  const logout = useCallback(async () => {
+    try {
+      if (token) {
+        await api.post("/auth/logout");
+      }
+    } catch {
+      // Ignore errors on logout so client state cleanup always succeeds
+    } finally {
+      localStorage.removeItem("campus_connect_token");
+      setToken(null);
+      setUser(null);
+    }
+  }, [token]);
 
   const updateToken = useCallback((newToken) => {
     localStorage.setItem("campus_connect_token", newToken);

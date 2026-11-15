@@ -230,4 +230,36 @@
 **Rationale:** Guarantees zero notification loss if a recipient is offline or temporarily disconnected when an event triggers. Duplicate connection requests from the same user are prevented while unread.
 **Date:** 2026-11-15
 
+---
+
+## TD-025: In-Memory Sliding-Window Rate Limiter & Anti-Spoofing (P7-04)
+
+**Decision:** Implement an in-memory sliding-window rate limiter in FastAPI (`core/rate_limit.py`) with environment-driven limits and explicit anti-spoofing IP resolution. Document as single-instance / process-local.
+**Rationale:** Provides robust brute-force protection against rapid login/register/password change attacks without requiring paid services or external Redis infrastructure. Protects against client IP spoofing by only inspecting `X-Forwarded-For` when the direct connecting peer (`request.client.host`) matches `settings.trusted_proxies`. Exceeded limits return HTTP 429 with `Retry-After` header.
+**Date:** 2026-11-15
+
+---
+
+## TD-026: Comprehensive Security Headers & Content Security Policy (P7-03)
+
+**Decision:** Implement ASGI `SecurityHeadersMiddleware` setting `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `X-XSS-Protection: 1; mode=block`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`, conditional HSTS, and a tailored Content Security Policy.
+**Rationale:** Defends against clickjacking, MIME sniffing, and cross-site scripting. CSP is tested and verified against the actual React frontend assets, allowing `default-src 'self'`, inline styles for runtime Tailwind CSS dynamic injection (`style-src 'self' 'unsafe-inline'`), external avatar images (`img-src 'self' data: https: blob:`), and WebSocket connections (`connect-src 'self' ws: wss: http: https:`).
+**Date:** 2026-11-15
+
+---
+
+## TD-027: Server-Side JWT Revocation on Logout (P7-06, FR-AUTH-5)
+
+**Decision:** Implement `POST /api/v1/auth/logout` that increments `user.token_version` in PostgreSQL and terminates all open WebSocket connections for the user via `manager.disconnect_user(user.id, code=1008)`.
+**Rationale:** Upgrades stateless JWT auth to genuine server-side revocation across all devices. Because `get_current_user` and `_authenticate_ws` enforce exact `token_version` matching against the database record, old access tokens immediately become unusable (HTTP 401 Unauthorized), preventing replay attacks after logout.
+**Date:** 2026-11-15
+
+---
+
+## TD-028: Production Exception Masking & Zero-Downtime Health Probes (P7-06, P7-14)
+
+**Decision:** Register a global exception handler in `app/main.py` that sanitizes internal server errors when `settings.environment == "production"` while preserving detailed server-side error logging. Provide separate `/health` (liveness) and `/health/db` (readiness with `SELECT 1` ping) endpoints.
+**Rationale:** Prevents SQL queries, database credentials, and internal stack traces from leaking to client responses. Health probes allow orchestration layers (Docker, Kubernetes) to monitor process responsiveness and database connectivity independently without revealing infrastructure details.
+**Date:** 2026-11-15
+
 

@@ -15,6 +15,25 @@ Format:
 
 ---
 
+## [2026-11-15] — Phase 7 Security Audit & Hardening Complete (P7-03 to P7-06, P7-14)
+
+### Added
+- `backend/app/core/rate_limit.py` — In-memory sliding-window rate limiter with anti-spoofing IP resolution (only parses `X-Forwarded-For` from `settings.trusted_proxies`) and HTTP 429 `Retry-After` response headers.
+- `backend/app/core/security_headers.py` — ASGI middleware adding `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `X-XSS-Protection: 1; mode=block`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`, conditional HSTS, and Content Security Policy (CSP).
+- `backend/app/api/auth.py` — Added `POST /api/v1/auth/logout` endpoint that increments `token_version` in PostgreSQL and terminates active WebSockets for genuine server-side JWT revocation (FR-AUTH-5).
+- `backend/app/main.py` — Added readiness health probe `GET /health/db` executing a `SELECT 1` ping, and global production exception handler that masks internal tracebacks and SQL errors.
+- `backend/tests/test_security_p7.py` — 10 automated test suites covering security headers, CSP, health endpoints, CORS safety validation, rate limiting, anti-spoofing, server-side logout token revocation, and production error sanitization.
+- `frontend/src/components/ErrorBoundary.jsx` — Reusable React ErrorBoundary displaying accessible recovery UI without leaking internal stack traces.
+- `frontend/src/tests/ErrorBoundary.test.jsx` — Vitest suite testing error boundary rendering, stack trace suppression, and reload/home recovery actions.
+
+### Changed
+- `backend/app/core/config.py` — Added environment-driven CORS configuration with wildcard rejection, rate limiting flags, and trusted proxies parsing.
+- `backend/app/api/auth.py` — Wired rate limiting dependencies to `/register`, `/login`, and `/change-password`; added institutional domain verification when configured.
+- `frontend/src/App.jsx` — Wrapped root application tree in `ErrorBoundary`.
+- `frontend/src/context/AuthContext.jsx` — Updated `logout()` to call `POST /api/v1/auth/logout` for server-side session invalidation before clearing local state.
+
+---
+
 ## [2026-11-15] — Phase 6 Notifications & Campus Resources Module Complete (commit 5c7ca59)
 
 ### Added

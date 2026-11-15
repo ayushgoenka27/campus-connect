@@ -1,7 +1,7 @@
 # Campus Connect — Testing Report
 
-**Version:** 1.3  
-**Last Updated:** 2026-11-15 (Phase 6 complete, commit `5c7ca59`)
+**Version:** 1.4  
+**Last Updated:** 2026-11-15 (Phase 7 Security Hardening complete)
 
 ---
 
@@ -9,15 +9,15 @@
 
 | Metric | Value |
 |--------|-------|
-| Backend API & DB tests (`pytest`) | 80 suites (8 in `test_api.py` + 12 in `test_community.py` + 37 in `test_announcements.py` + 17 in `test_messages.py` + 6 in `test_phase6.py`, SQLite in-memory) |
-| Backend tests passing | 80 / 80 (100%) in 14.40s |
-| Frontend component tests (`Vitest + RTL`) | 24 suites (`Community` 4, `Connections` 2, `Announcements` 4, `AdminDashboard` 3, `Messages` 5, `Phase6` 6, `jsdom` + mocked API) |
-| Frontend tests passing | 24 / 24 (100%) in 5.37s |
+| Backend API & DB tests (`pytest`) | 90 suites (8 in `test_api.py` + 12 in `test_community.py` + 37 in `test_announcements.py` + 17 in `test_messages.py` + 6 in `test_phase6.py` + 10 in `test_security_p7.py`, SQLite in-memory) |
+| Backend tests passing | 90 / 90 (100%) in 11.86s |
+| Frontend component tests (`Vitest + RTL`) | 27 suites (`Community` 4, `Connections` 2, `Announcements` 4, `AdminDashboard` 3, `Messages` 5, `Phase6` 6, `ErrorBoundary` 3, `jsdom` + mocked API) |
+| Frontend tests passing | 27 / 27 (100%) in 4.90s |
 | Frontend ESLint status | Clean (0 errors, 0 warnings) |
-| Frontend production build | Clean (`npm run build` in 920ms, 1,901 modules) |
+| Frontend production build | Clean (`npm run build` in 619ms, 1,902 modules) |
 | Isolated DB migration tests (`Alembic`) | Passed (`upgrade head` -> `downgrade 6a912f8eac82` -> `upgrade head` on isolated temp PostgreSQL DB `campus_connect_p6_verify` up to `055c082ed165`) |
 | PostgreSQL dev database connection | Verified (`campus_connect` on localhost:5432, head `055c082ed165`, 7 users / 3 connections / 1 post / 1 like intact; 5 resources / 4 events seeded) |
-| Live Browser UI E2E (Phase 6) | 5 / 5 passed in real Chrome (`scratch/p6_browser_e2e.py` against live FastAPI + PostgreSQL + Vite) |
+| Live Browser UI E2E (Phase 6/7) | 5 / 5 passed in real Chrome (`scratch/verify_phase6_final.py` against live FastAPI + PostgreSQL + Vite) |
 
 ---
 

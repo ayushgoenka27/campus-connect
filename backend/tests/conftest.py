@@ -7,6 +7,8 @@ from starlette.testclient import TestClient
 from app.main import app
 from app.models.base import Base
 from app.db.dependencies import get_db
+from app.core.config import settings
+from app.core.rate_limit import limiter
 
 # Use an in-memory SQLite database for deterministic, isolated unit testing
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
@@ -24,6 +26,18 @@ def setup_database():
     Base.metadata.create_all(bind=engine)
     yield
     Base.metadata.drop_all(bind=engine)
+
+
+@pytest.fixture(autouse=True)
+def manage_rate_limiting():
+    """Disable rate limiter by default during unit tests to avoid false-positive 429s.
+    Targeted security tests in test_security_p7.py enable it explicitly."""
+    original = settings.rate_limit_enabled
+    settings.rate_limit_enabled = False
+    limiter.reset()
+    yield
+    settings.rate_limit_enabled = original
+    limiter.reset()
 
 
 @pytest.fixture
