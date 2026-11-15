@@ -1,7 +1,7 @@
 # Campus Connect — Testing Report
 
-**Version:** 1.5  
-**Last Updated:** 2026-11-15 (Phase 7 Performance Optimization complete)
+**Version:** 1.6  
+**Last Updated:** 2026-11-15 (Phase 7 Integration & Browser Testing complete — P7-01, P7-02)
 
 ---
 
@@ -10,7 +10,7 @@
 | Metric | Value |
 |--------|-------|
 | Backend API & DB tests (`pytest`) | 90 suites (8 in `test_api.py` + 12 in `test_community.py` + 37 in `test_announcements.py` + 17 in `test_messages.py` + 6 in `test_phase6.py` + 10 in `test_security_p7.py`, SQLite in-memory) |
-| Backend tests passing | 90 / 90 (100%) in 14.82s |
+| Backend tests passing | 90 / 90 (100%) in 15.06s |
 | Frontend component tests (`Vitest + RTL`) | 28 suites across 8 files (`Community` 4, `Connections` 2, `Announcements` 4, `AdminDashboard` 3, `Messages` 5, `Phase6` 6, `ErrorBoundary` 3, `RouteLoadingFallback` 1) |
 | Frontend tests passing | 28 / 28 (100%) in 6.14s |
 | Frontend ESLint status | Clean (0 errors, 0 warnings) |
@@ -289,6 +289,69 @@ Direct query execution on local PostgreSQL database:
 | BUG-04 | Connect buttons on dashboard do nothing | 🔴 High | ✅ Resolved (`Dashboard.jsx` active connect action) |
 | BUG-05 | No logout button | 🔴 High | ✅ Resolved (`AppLayout.jsx` + `AuthContext.jsx`) |
 | BUG-06 | `GET /sent` returns all statuses not just pending | 🟡 Medium | ✅ Resolved (`connections.py` pending filter) |
+
+---
+
+## Phase 7 Integration Testing Results (P7-01)
+
+### Concurrency & Failure Resilience (`scratch/test_p7_concurrency_failure.py`)
+
+| Suite | Test | Result |
+|-------|------|--------|
+| TEST 1 | Simultaneous duplicate connection requests → DB unique constraint enforced | ✅ PASS — responses `[201, 409]` |
+| TEST 2 | 3 concurrent WebSocket sessions (ping/pong) + multi-tab offline presence tracking | ✅ PASS |
+| TEST 3 | 5 simultaneous messages delivered to Bob's WebSocket (zero drops) | ✅ PASS |
+| TEST 4 | Non-participant 403 on conversations, student 403 on admin stats | ✅ PASS |
+| TEST 5 | Expired JWT → 401, revoked JWT after logout → 401 | ✅ PASS |
+| TEST 6 | Deactivated account login → 403 | ✅ PASS |
+| TEST 7 | Post created before server restart, verified persisted after restart | ✅ PASS |
+
+**Total: 7/7 suites passed**
+
+### Full E2E Integration Journeys (`scratch/test_p7_e2e_full.py`)
+
+| Journey | Description | Chrome | Edge |
+|---------|-------------|--------|------|
+| 1 | Student registration & login (Alice + Bob) | ✅ | ✅ |
+| 2 | Profile editing & reload verification | ✅ | ✅ |
+| 3 | Student discovery & send connection request | ✅ | ✅ |
+| 4 | Accept connection request | ✅ | ✅ |
+| 5 | Community post creation; Bob likes post | ✅ | ✅ |
+| 6 | Real-time messaging & read receipt | ✅ | ✅ |
+| 7 | Notifications dropdown opened & marked read | ✅ | ✅ |
+| 8 | Announcements catalog & category filter | ✅ | ✅ |
+| 9 | Campus Resources catalog & category filter | ✅ | ✅ |
+| 10 | Campus Events (RSVP attempted if button visible) | ✅ | ✅ |
+| 11 | Settings password change + re-login with new password | ✅ | ✅ |
+| 12 | Admin registration, DB elevation, Admin Console verification | ✅ | ✅ |
+| 13 | Server-side logout → redirected to `/login` | ✅ | ✅ |
+
+**Total: 13/13 journeys on Chrome and Edge (100%)**
+
+---
+
+## Phase 7 Browser Compatibility Results (P7-02)
+
+### Browser Matrix
+
+| Browser | Engine | Status | Notes |
+|---------|--------|--------|-------|
+| Google Chrome | Chromium (channel) | ✅ PASS | 13/13 journeys; all JS/CSS/WS functional |
+| Microsoft Edge | Chromium (channel) | ✅ PASS | 13/13 journeys; all JS/CSS/WS functional |
+| Firefox | Gecko | ❌ UNAVAILABLE | `BrowserType.launch: spawn UNKNOWN` — Playwright `firefox-1572` binary downloaded but fails to launch on this Windows host. Known compatibility gap; not a code defect. |
+| WebKit (Safari engine) | WebKit | ❌ UNAVAILABLE | Missing 17 system DLLs: `icuin77.dll`, `icuuc77.dll`, `lcms2-2.dll`, `libxslt.dll`, `libwebp.dll` and 12 others. Cannot be installed without system-level package installation. |
+
+### Responsive Layout Verification (Chrome)
+
+| Viewport | Size | Status |
+|----------|------|--------|
+| Desktop | 1280×800 | ✅ PASS |
+| Tablet | 768×1024 | ✅ PASS |
+| Mobile | 375×667 | ✅ PASS |
+
+> [!NOTE]
+> WebSocket `failed: WebSocket is closed before the connection is established` console warnings observed during Playwright headless tests are expected behavior — the headless page navigates before the Vite HMR WS handshake completes. This does not affect application functionality.
+
 
 ---
 

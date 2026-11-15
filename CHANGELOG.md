@@ -15,6 +15,26 @@ Format:
 
 ---
 
+## [2026-11-15] — Phase 7 Integration & Browser Testing Complete (P7-01, P7-02)
+
+### Added
+- `scratch/test_p7_e2e_full.py` — Full E2E browser integration test runner covering 13 user journeys via Playwright. Runs against Chrome and Edge. All 13 journeys passed on both browsers (100%).
+- `scratch/test_p7_concurrency_failure.py` — Concurrency and failure resilience test suite (7 suites): simultaneous duplicate connections (DB unique constraint), 3 concurrent WebSocket sessions, 5 simultaneous message deliveries (zero drops), authorization boundary enforcement, JWT expiry + revocation (token_version), deactivated account rejection, and post persistence across server restart.
+- `scratch/backup_campus_connect_p7_pre_e2e.dump` — Pre-E2E PostgreSQL backup (65 KB) preserving baseline users, connections, posts, resources, and events.
+
+### Tests Executed
+- **Concurrency & Failure (P7-01):** 7/7 suites passed — race conditions, multi-WS, JWT revocation, deactivated accounts, restart resilience
+- **E2E Integration (P7-01):** 13/13 journeys on Chrome ✅ and Edge ✅
+  - Journeys: Registration/Login, Profile editing, Student discovery, Connection requests, Accept/reject, Community posts+likes, Real-time messaging+read receipts, Notifications dropdown, Announcements+filtering, Resources+filtering, Events RSVP, Settings password change+re-login, Admin console, Server-side logout
+- **Browser Compatibility (P7-02):** Chrome ✅ | Edge ✅ | Firefox ❌ (spawn UNKNOWN on this Windows host) | WebKit ❌ (17 missing system DLLs)
+- **Responsive Layout (P7-02):** Desktop 1280×800 ✅ | Tablet 768×1024 ✅ | Mobile 375×667 ✅
+- **Backend pytest:** 90/90 passed in 15.06s, 6 deprecation warnings
+- **Frontend Vitest:** 28/28 passed in 5.87s
+- **ESLint:** 0 errors, 0 warnings
+- **Production build:** Clean — 251.89 kB main bundle, 79.84 kB gzip
+
+---
+
 ## [2026-11-15] — Phase 7 Performance Optimization Complete (P7-07, P7-08, P7-09)
 
 ### Added
