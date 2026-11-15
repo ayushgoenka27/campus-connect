@@ -1,7 +1,7 @@
 # Campus Connect — Testing Report
 
-**Version:** 1.4  
-**Last Updated:** 2026-11-15 (Phase 7 Security Hardening complete)
+**Version:** 1.5  
+**Last Updated:** 2026-11-15 (Phase 7 Performance Optimization complete)
 
 ---
 
@@ -10,14 +10,16 @@
 | Metric | Value |
 |--------|-------|
 | Backend API & DB tests (`pytest`) | 90 suites (8 in `test_api.py` + 12 in `test_community.py` + 37 in `test_announcements.py` + 17 in `test_messages.py` + 6 in `test_phase6.py` + 10 in `test_security_p7.py`, SQLite in-memory) |
-| Backend tests passing | 90 / 90 (100%) in 11.86s |
-| Frontend component tests (`Vitest + RTL`) | 27 suites (`Community` 4, `Connections` 2, `Announcements` 4, `AdminDashboard` 3, `Messages` 5, `Phase6` 6, `ErrorBoundary` 3, `jsdom` + mocked API) |
-| Frontend tests passing | 27 / 27 (100%) in 4.90s |
+| Backend tests passing | 90 / 90 (100%) in 14.82s |
+| Frontend component tests (`Vitest + RTL`) | 28 suites across 8 files (`Community` 4, `Connections` 2, `Announcements` 4, `AdminDashboard` 3, `Messages` 5, `Phase6` 6, `ErrorBoundary` 3, `RouteLoadingFallback` 1) |
+| Frontend tests passing | 28 / 28 (100%) in 6.14s |
 | Frontend ESLint status | Clean (0 errors, 0 warnings) |
-| Frontend production build | Clean (`npm run build` in 619ms, 1,902 modules) |
+| Frontend production build | Clean (`npm run build` in 747ms, 1,903 modules) |
+| Initial JS bundle size (P7-09) | **251.89 kB (79.84 kB gzip)** — reduced from 484.73 kB (132.12 kB gzip), **-48.0%** reduction |
+| Route code-splitting chunks | 13 lazy-loaded route chunks (6.48 kB to 21.97 kB) |
 | Isolated DB migration tests (`Alembic`) | Passed (`upgrade head` -> `downgrade 6a912f8eac82` -> `upgrade head` on isolated temp PostgreSQL DB `campus_connect_p6_verify` up to `055c082ed165`) |
 | PostgreSQL dev database connection | Verified (`campus_connect` on localhost:5432, head `055c082ed165`, 7 users / 3 connections / 1 post / 1 like intact; 5 resources / 4 events seeded) |
-| Live Browser UI E2E (Phase 6/7) | 5 / 5 passed in real Chrome (`scratch/verify_phase6_final.py` against live FastAPI + PostgreSQL + Vite) |
+| Live Browser UI E2E & Route Refresh | 13 / 13 routes verified on direct load and refresh in real Chrome (`scratch/verify_p7_routes.py` with zero errors) |
 
 ---
 
@@ -287,6 +289,56 @@ Direct query execution on local PostgreSQL database:
 | BUG-04 | Connect buttons on dashboard do nothing | 🔴 High | ✅ Resolved (`Dashboard.jsx` active connect action) |
 | BUG-05 | No logout button | 🔴 High | ✅ Resolved (`AppLayout.jsx` + `AuthContext.jsx`) |
 | BUG-06 | `GET /sent` returns all statuses not just pending | 🟡 Medium | ✅ Resolved (`connections.py` pending filter) |
+
+---
+
+## Phase 7 Performance Optimization & Route Verification (P7-07, P7-08, P7-09)
+
+### 1. Database Query Audit (P7-07, P7-08)
+- **Eliminated 3N+1 in `list_conversations`**:
+  - Preloaded conversation participant models using `joinedload(Conversation.user1)` and `joinedload(Conversation.user2)`.
+  - Replaced per-row unread count queries with a single batched `GROUP BY` query across all conversation IDs.
+  - Replaced per-row latest message subqueries with a single batched `GROUP BY Message.conversation_id` query using `func.max(Message.id)`.
+  - Query count reduced from `3N+1` to constant `3` queries regardless of conversation count.
+- **Connection Pool Tuning**:
+  - `pool_pre_ping=True`: Detects stale connections before dispensing to caller.
+  - `pool_size=10`: Handles standard concurrent traffic.
+  - `max_overflow=20`: Allows headroom for bursts up to 30 connections.
+  - `pool_recycle=1800`: Recycles idle sockets every 30 minutes to prevent PostgreSQL timeouts.
+- **Index Coverage Verified**:
+  - `notifications`: `(user_id, is_read)` and `(user_id, created_at)`
+  - `messages`: `(conversation_id, created_at)` and `(recipient_id, is_read)`
+  - `conversations`: `(user1_id)`, `(user2_id)`, `(last_message_at)`, and symmetric unique pair
+  - `connections`: `(sender_id)`, `(receiver_id)`, and symmetric unique pair
+  - `events`: `(start_date)` and `(category)`
+
+### 2. Frontend Route Lazy Loading & Bundle Measurements (P7-09)
+- **Production Bundle Comparison**:
+  - **Before Optimization (Monolithic)**:
+    - Main bundle: `dist/assets/index-CJNOodq4.js` — **484.73 kB (132.12 kB gzip)**
+  - **After Optimization (`React.lazy` + `Suspense`)**:
+    - Main entry bundle: `dist/assets/index-ye9Ez9Tv.js` — **251.89 kB (79.84 kB gzip)**
+    - Raw reduction: **-232.84 kB (-48.0%)**
+    - Compressed reduction: **-52.28 kB (-39.6%)**
+    - 13 Route Chunks: `Login` (6.48 kB), `Register` (6.69 kB), `Settings` (8.17 kB), `Resources` (10.83 kB), `Discover` (12.40 kB), `Profile` (14.46 kB), `Dashboard` (15.10 kB), `Events` (15.11 kB), `Announcements` (15.24 kB), `Connections` (15.43 kB), `Messages` (16.92 kB), `AdminDashboard` (19.07 kB), `Community` (21.97 kB).
+- **Accessible Fallback**:
+  - `RouteLoadingFallback.jsx`: Semantic ARIA live region (`role="status"`, `aria-live="polite"`, `aria-label="Loading page content"`). Tested in `RouteLoadingFallback.test.jsx`.
+
+### 3. Route Direct Load & Refresh Verification (Chrome via Playwright)
+All 13 application routes were loaded directly and refreshed with active user sessions:
+- `/login` — Direct navigation & refresh: ✅ PASSED
+- `/register` — Direct navigation & refresh: ✅ PASSED
+- `/` (Dashboard) — Direct navigation & refresh: ✅ PASSED
+- `/discover` (Discover) — Direct navigation & refresh: ✅ PASSED
+- `/connections` (Connections) — Direct navigation & refresh: ✅ PASSED
+- `/messages` (Messages) — Direct navigation & refresh: ✅ PASSED
+- `/community` (Community) — Direct navigation & refresh: ✅ PASSED
+- `/events` (Events) — Direct navigation & refresh: ✅ PASSED
+- `/resources` (Resources) — Direct navigation & refresh: ✅ PASSED
+- `/announcements` (Announcements) — Direct navigation & refresh: ✅ PASSED
+- `/profile` (Profile) — Direct navigation & refresh: ✅ PASSED
+- `/settings` (Settings) — Direct navigation & refresh: ✅ PASSED
+- `/admin` (AdminDashboard) — Direct navigation & refresh: ✅ PASSED
 
 ---
 

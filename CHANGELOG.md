@@ -15,6 +15,28 @@ Format:
 
 ---
 
+## [2026-11-15] — Phase 7 Performance Optimization Complete (P7-07, P7-08, P7-09)
+
+### Added
+- `frontend/src/components/RouteLoadingFallback.jsx` — Accessible loading skeleton with semantic ARIA markup (`role="status"`, `aria-live="polite"`, `aria-label="Loading page content"`) and animated Tailwind pulse layout.
+- `frontend/src/tests/RouteLoadingFallback.test.jsx` — Automated Vitest suite verifying accessibility roles and screen reader announcements during lazy route resolution.
+- `scratch/verify_p7_routes.py` — Playwright browser test verifying direct navigation and page refresh across all 13 application routes in real Chrome with zero errors.
+
+### Changed
+- `backend/app/api/conversations.py` — Replaced 3N+1 queries in `list_conversations` with `_build_conversation_responses()`: preloads user profiles with `joinedload`, batches unread message counts in a single query across all conversation IDs, and batches latest message IDs via `func.max(Message.id)`. Reduced query count from `3N+1` to constant `3` queries.
+- `backend/app/db/database.py` — Configured resilient PostgreSQL connection pool parameters (`pool_pre_ping=True`, `pool_size=10`, `max_overflow=20`, `pool_recycle=1800`) to prevent stale socket dropouts and handle concurrency bursts up to 30 connections.
+- `frontend/src/App.jsx` — Replaced static route imports with `React.lazy()` and `<Suspense fallback={<RouteLoadingFallback />}>` across all 13 application routes.
+- Bundle Optimization Results: Initial entry bundle size reduced from 484.73 kB (132.12 kB gzip) to 251.89 kB (79.84 kB gzip) — a **-48.0%** raw reduction (-39.6% gzip), generating 13 on-demand route chunks (6.48 kB to 21.97 kB).
+
+### Tests Executed
+- Backend `pytest`: 90 / 90 passed (100%) in 14.82s.
+- Frontend `Vitest`: 28 / 28 passed across 8 test suites (100%) in 6.14s.
+- Frontend ESLint: 0 errors, 0 warnings.
+- Production build: Clean Vite build in 747ms.
+- Chrome Browser Route Verification: 13 / 13 routes verified on direct load and refresh with zero errors.
+
+---
+
 ## [2026-11-15] — Phase 7 Security Audit & Hardening Complete (P7-03 to P7-06, P7-14)
 
 ### Added

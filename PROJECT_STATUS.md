@@ -2,7 +2,7 @@
 
 **Audit Date:** 2026-11-15  
 **Auditor:** Principal Architect / AI Engineering Lead  
-**Current Phase:** Phase 7 in progress (Security Audit & Hardening Complete)
+**Current Phase:** Phase 7 in progress (Performance Optimization & Route Code-Splitting Complete)
 
 ---
 
@@ -263,21 +263,22 @@ Campus Connect/
 
 | Area | Tests Present | Executed | Status |
 |------|--------------|----------|--------|
-| Backend API (`pytest`) | 57 tests (`test_api.py` 8 + `test_community.py` 12 + `test_announcements.py` 37) | 57 executed | ✅ 57/57 Passed in 7.61s (SQLite in-memory) |
-| Frontend Component Tests (`Vitest + RTL`) | 13 tests (`Community` 4 + `Connections` 2 + `Announcements` 4 + `AdminDashboard` 3) | 13 executed | ✅ 13/13 Passed in 4.37s (mocked API in `jsdom`) |
+| Backend API (`pytest`) | 90 tests (`test_api.py` 8 + `test_community.py` 12 + `test_announcements.py` 37 + `test_messages.py` 17 + `test_phase6.py` 6 + `test_security_p7.py` 10) | 90 executed | ✅ 90/90 Passed in 14.82s (SQLite in-memory) |
+| Frontend Component Tests (`Vitest + RTL`) | 28 tests across 8 test suites (`Community` 4, `Connections` 2, `Announcements` 4, `AdminDashboard` 3, `Messages` 5, `Phase6` 6, `ErrorBoundary` 3, `RouteLoadingFallback` 1) | 28 executed | ✅ 28/28 Passed in 6.14s (mocked API in `jsdom`) |
 | Frontend Code Quality (ESLint) | Project-wide | Executed | ✅ 0 errors, 0 warnings |
-| Frontend Production Build (Vite) | Full bundling | Executed | ✅ Built in 649ms (`1,896` modules) |
-| Isolated Migration Check (`Alembic`) | Full chain through `6a912f8eac82` + downgrade | Executed | ✅ Passed on temp DB (`campus_connect_p4_test2`) |
-| Live Browser UI E2E (Playwright + Chrome) | Full Phase 4 student + admin operations | Executed | ✅ Passed against live PostgreSQL (`scratch/p4_browser_e2e.py`) |
-| PostgreSQL Connectivity | Live check | Executed | ✅ Connected to `campus_connect` at head `6a912f8eac82` |
+| Frontend Production Build (Vite) | Full bundling & code-splitting | Executed | ✅ Built in 747ms (`1,903` modules) |
+| Initial JS Bundle Optimization | Monolithic vs Code-Split | Executed | ✅ **251.89 kB (79.84 kB gzip)** (-48.0% reduction from 484.73 kB) |
+| Isolated Migration Check (`Alembic`) | Full chain through `055c082ed165` + downgrade | Executed | ✅ Passed on temp DB (`campus_connect_p6_verify`) |
+| Live Browser UI E2E & Route Refresh | All 13 application routes | Executed | ✅ 13/13 verified in real Chrome (`scratch/verify_p7_routes.py`) |
+| PostgreSQL Connectivity | Live check | Executed | ✅ Connected to `campus_connect` at head `055c082ed165` |
 
 ---
 
 ## 10. Database Status
 
 - PostgreSQL connected and active on `localhost:5432`, database `campus_connect`
-- Alembic migration revision: `6a912f8eac82` (head, up-to-date)
-- Tables present: `alembic_version`, `users`, `connections`, `posts`, `comments`, `likes`, `announcements`, `reports`, `moderation_logs`
-- Existing data preserved: 6 user accounts (`teststudent01`..`user_beta`), 2 connections (IDs 1 and 4), 0 posts, 0 announcements, 0 reports, 0 moderation logs
-- **Missing tables (Phase 5–6):** messages, conversations, notifications, resources, events
+- Alembic migration revision: `055c082ed165` (head, up-to-date)
+- Tables present: `alembic_version`, `users`, `connections`, `posts`, `comments`, `likes`, `announcements`, `reports`, `moderation_logs`, `conversations`, `messages`, `notifications`, `resources`, `events`, `event_rsvps`
+- Existing data preserved: 7 baseline user accounts, 3 connections, 1 post, 1 like, 5 seeded academic resources, 4 seeded events
+- All foreign keys, partial unique indexes, and CheckConstraints verified intact
 

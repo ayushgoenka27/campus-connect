@@ -262,4 +262,21 @@
 **Rationale:** Prevents SQL queries, database credentials, and internal stack traces from leaking to client responses. Health probes allow orchestration layers (Docker, Kubernetes) to monitor process responsiveness and database connectivity independently without revealing infrastructure details.
 **Date:** 2026-11-15
 
+---
+
+## TD-029: Batched Query Optimization for Conversations & Connection Pool Tuning (P7-07, P7-08)
+
+**Decision:** Refactor `list_conversations` in `backend/app/api/conversations.py` to eliminate 3N+1 queries by preloading conversation participants with `joinedload`, batching unread message counts in a single `GROUP BY` query across all conversation IDs, and batching latest message IDs via `func.max(Message.id)`. Configure PostgreSQL engine pooling parameters (`pool_pre_ping=True`, `pool_size=10`, `max_overflow=20`, `pool_recycle=1800`) in `backend/app/db/database.py`.
+**Rationale:** The conversation listing previously performed three distinct queries per conversation (one peer lookup, one unread count count query, and one latest message subquery). For a user with 20 conversations, this incurred 61 database round trips. The batched implementation executes in exactly 3 constant database queries regardless of conversation count (O(1) round trips). Connection pool settings prevent stale socket timeouts (recycle at 30 minutes) and handle traffic bursts up to 30 concurrent connections while testing socket health before handing connections to request handlers.
+**Date:** 2026-11-15
+
+---
+
+## TD-030: Frontend Route Code-Splitting with Accessible Fallback Skeleton (P7-09)
+
+**Decision:** Split monolithic frontend application bundle using `React.lazy()` and `<Suspense>` in `frontend/src/App.jsx`. All 13 application routes are loaded on demand. Created `RouteLoadingFallback.jsx` with accessible ARIA attributes (`role="status"`, `aria-live="polite"`, `aria-label="Loading page content"`) and animated Tailwind pulse skeleton.
+**Rationale:** Reduces initial JavaScript payload from 484.73 kB (132.12 kB gzip) to 251.89 kB (79.84 kB gzip) — a -48.0% raw reduction (-39.6% compressed). On-demand route chunks (6.48 kB to 21.97 kB) load only when a user navigates to the respective view, optimizing First Contentful Paint (FCP) and Time to Interactive (TTI). Verified direct navigation and page refresh across all 13 routes with zero blank-screen glitches.
+**Date:** 2026-11-15
+
+
 

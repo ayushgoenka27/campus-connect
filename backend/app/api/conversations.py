@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import and_, desc, func, or_, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.dependencies import get_current_user
 from app.core.websocket import manager
@@ -71,34 +71,61 @@ def _serialize_message(msg: Message, client_msg_id: Optional[str] = None) -> Mes
     )
 
 
-def _serialize_conversation(conv: Conversation, current_user_id: int, db: Session) -> ConversationResponse:
-    peer = conv.user2 if conv.user1_id == current_user_id else conv.user1
+def _build_conversation_responses(
+    convs: list[Conversation], current_user_id: int, db: Session
+) -> list[ConversationResponse]:
+    """Construct ConversationResponse items using batched queries to prevent N+1 overhead (P7-07)."""
+    if not convs:
+        return []
 
-    # Unread count for current user
-    unread_count = db.scalar(
-        select(func.count(Message.id)).where(
-            Message.conversation_id == conv.id,
-            Message.recipient_id == current_user_id,
-            Message.is_read.is_(False),
+    conv_ids = [c.id for c in convs]
+
+    # 1. Batched unread counts across all conversations in a single query
+    unread_counts = dict(
+        db.execute(
+            select(Message.conversation_id, func.count(Message.id))
+            .where(
+                Message.conversation_id.in_(conv_ids),
+                Message.recipient_id == current_user_id,
+                Message.is_read.is_(False),
+            )
+            .group_by(Message.conversation_id)
+        ).all()
+    )
+
+    # 2. Batched latest message IDs across all conversations in a single query
+    latest_msg_ids = [
+        row[0]
+        for row in db.execute(
+            select(func.max(Message.id))
+            .where(Message.conversation_id.in_(conv_ids))
+            .group_by(Message.conversation_id)
+        ).all()
+    ]
+    latest_messages = {}
+    if latest_msg_ids:
+        for msg in db.scalars(select(Message).where(Message.id.in_(latest_msg_ids))).all():
+            latest_messages[msg.conversation_id] = msg
+
+    results = []
+    for conv in convs:
+        peer = conv.user2 if conv.user1_id == current_user_id else conv.user1
+        last_msg = latest_messages.get(conv.id)
+        results.append(
+            ConversationResponse(
+                id=conv.id,
+                peer=_serialize_participant(peer),
+                last_message=_serialize_message(last_msg) if last_msg else None,
+                unread_count=unread_counts.get(conv.id, 0),
+                created_at=conv.created_at,
+                updated_at=conv.updated_at,
+            )
         )
-    ) or 0
+    return results
 
-    # Last message
-    last_msg = db.scalar(
-        select(Message)
-        .where(Message.conversation_id == conv.id)
-        .order_by(desc(Message.created_at))
-        .limit(1)
-    )
 
-    return ConversationResponse(
-        id=conv.id,
-        peer=_serialize_participant(peer),
-        last_message=_serialize_message(last_msg) if last_msg else None,
-        unread_count=unread_count,
-        created_at=conv.created_at,
-        updated_at=conv.updated_at,
-    )
+def _serialize_conversation(conv: Conversation, current_user_id: int, db: Session) -> ConversationResponse:
+    return _build_conversation_responses([conv], current_user_id, db)[0]
 
 
 # ---------------------------------------------------------------------------
@@ -111,6 +138,10 @@ def list_conversations(
 ):
     q = (
         select(Conversation)
+        .options(
+            joinedload(Conversation.user1),
+            joinedload(Conversation.user2),
+        )
         .where(
             or_(
                 Conversation.user1_id == current_user.id,
@@ -119,8 +150,8 @@ def list_conversations(
         )
         .order_by(desc(Conversation.last_message_at))
     )
-    convs = db.scalars(q).all()
-    items = [_serialize_conversation(c, current_user.id, db) for c in convs]
+    convs = db.scalars(q).unique().all()
+    items = _build_conversation_responses(convs, current_user.id, db)
     return ConversationList(total=len(items), items=items)
 
 

@@ -147,9 +147,9 @@ Legend: ⬜ Not Started | 🔄 In Progress | 🚧 Blocked | ✅ Implemented | �
 | P7-04 | API rate limiting on sensitive endpoints | ✔️ Completed | Sliding-window limiter on login/register/password change |
 | P7-05 | Input sanitization, URL scheme checks & injection audit | ✔️ Completed | Scheme validation, parameterized queries |
 | P7-06 | Error boundaries, log masking & server-side logout | ✔️ Completed | React `ErrorBoundary`, 500 sanitization, `POST /auth/logout` |
-| P7-07 | Database query audit, EXPLAIN ANALYZE & N+1 elimination | ⬜ Not Started | Hot path optimizations |
-| P7-08 | Index coverage & connection pool tuning | ⬜ Not Started | Production database indexing |
-| P7-09 | Frontend route lazy loading & bundle optimization | ⬜ Not Started | `React.lazy` + `Suspense` code splitting |
+| P7-07 | Database query audit, EXPLAIN ANALYZE & N+1 elimination | ✔️ Completed | 3N+1 elimination in conversations, batched queries |
+| P7-08 | Index coverage & connection pool tuning | ✔️ Completed | Verified index coverage & PostgreSQL connection pooling |
+| P7-09 | Frontend route lazy loading & bundle optimization | ✔️ Completed | `React.lazy` + `Suspense` code splitting (-48.0% initial bundle) |
 | P7-10 | Backend multi-stage production Dockerfile | ⬜ Not Started | Python 3.11-slim, unprivileged user |
 | P7-11 | Frontend production Dockerfile & Nginx SPA config | ⬜ Not Started | Nginx static serving + SPA fallback |
 | P7-12 | Docker Compose full stack orchestration | ⬜ Not Started | Backend, Frontend, Postgres, networks |
@@ -171,7 +171,7 @@ Legend: ⬜ Not Started | 🔄 In Progress | 🚧 Blocked | ✅ Implemented | �
 | Phase 4 | 10 | 10 | 0 | 0 |
 | Phase 5 | 15 | 15 | 0 | 0 |
 | Phase 6 | 13 | 13 | 0 | 0 |
-| Phase 7 | 16 | 5 | 0 | 0 |
-| **Total** | **98** | **87** | **0** | **0** |
+| Phase 7 | 16 | 8 | 0 | 0 |
+| **Total** | **98** | **90** | **0** | **0** |
 
                                         
