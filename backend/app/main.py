@@ -9,6 +9,9 @@ from app.api.announcements import router as announcements_router
 from app.api.reports import router as reports_router
 from app.api.admin import router as admin_router
 from app.api.conversations import router as conversations_router
+from app.api.notifications import router as notifications_router
+from app.api.resources import router as resources_router
+from app.api.events import router as events_router
 from app.api.websocket import router as websocket_router
 
 
@@ -71,6 +74,21 @@ app.include_router(
 
 app.include_router(
     conversations_router,
+    prefix="/api/v1",
+)
+
+app.include_router(
+    notifications_router,
+    prefix="/api/v1",
+)
+
+app.include_router(
+    resources_router,
+    prefix="/api/v1",
+)
+
+app.include_router(
+    events_router,
     prefix="/api/v1",
 )
 

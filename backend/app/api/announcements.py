@@ -18,6 +18,7 @@ from app.db.dependencies import get_db
 from app.models.announcement import Announcement
 from app.models.moderation_log import ModerationLog
 from app.models.user import User
+from app.services.notification_service import notify_all_active_users
 from app.schemas.announcement import (
     AnnouncementCreate,
     AnnouncementList,
@@ -165,7 +166,7 @@ def get_announcement(
 # POST /announcements — create (admin only, FR-ANN-1, FR-ANN-3)
 # ---------------------------------------------------------------------------
 @router.post("", response_model=AnnouncementResponse, status_code=status.HTTP_201_CREATED)
-def create_announcement(
+async def create_announcement(
     payload: AnnouncementCreate,
     current_admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
@@ -189,6 +190,18 @@ def create_announcement(
     db.commit()
     db.refresh(ann)
     ann.author = current_admin
+
+    if ann.is_published:
+        await notify_all_active_users(
+            db=db,
+            type="announcement",
+            title="Campus Announcement",
+            content=f"New announcement: {ann.title}",
+            link="/announcements",
+            actor_id=current_admin.id,
+            exclude_user_id=current_admin.id,
+        )
+
     return _serialize(ann)
 
 
@@ -240,7 +253,7 @@ def update_announcement(
 # PATCH /announcements/{id}/publish — toggle publish (admin only)
 # ---------------------------------------------------------------------------
 @router.patch("/{announcement_id}/publish", response_model=AnnouncementResponse)
-def toggle_publish(
+async def toggle_publish(
     announcement_id: int,
     current_admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
@@ -249,6 +262,7 @@ def toggle_publish(
     if not ann:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Announcement not found")
 
+    was_published = ann.is_published
     ann.is_published = not ann.is_published
     ann.updated_at = datetime.utcnow()
 
@@ -256,6 +270,18 @@ def toggle_publish(
     _log_action(db, current_admin.id, action, "announcement", ann.id)
     db.commit()
     db.refresh(ann)
+
+    if not was_published and ann.is_published:
+        await notify_all_active_users(
+            db=db,
+            type="announcement",
+            title="Campus Announcement",
+            content=f"New announcement: {ann.title}",
+            link="/announcements",
+            actor_id=current_admin.id,
+            exclude_user_id=current_admin.id,
+        )
+
     return _serialize(ann)
 
 

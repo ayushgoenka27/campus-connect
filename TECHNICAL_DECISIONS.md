@@ -194,4 +194,40 @@
 **Rationale:** Prevents administrative lock-out scenarios where no active administrators exist to manage the system. Checking `is_active` at request resolution in `get_current_user` guarantees immediate token invalidation for deactivated accounts without requiring token blocklist infrastructure.  
 **Date:** 2026-11-11
 
+---
+
+## TD-021: JWT Token Version for Multi-Session Invalidation
+
+**Decision:** Add `token_version: int` (default `1`, server_default `"1"`) to the `users` table and embed a `"tv"` claim in all issued JWT access tokens. Invalidate any token where `token_tv < user.token_version`.
+
+**Rationale:** When a user changes their password, all previous sessions, active tokens, and WebSocket connections across all devices must be invalidated immediately without introducing a stateful token blocklist or Redis store. On password change (`POST /api/v1/auth/change-password`), `user.token_version` increments by 1, `manager.disconnect_user(user.id, code=1008)` terminates active WebSockets, and a fresh JWT with the new `token_version` is returned for the current session.
+**Date:** 2026-11-15
+
+---
+
+## TD-022: External Academic Resources Model Without Fake File Uploads
+
+**Decision:** Store academic resources as validated HTTP/HTTPS external links with categorized metadata (syllabus, question papers, lab manuals, handbooks, portals, study material). Do not claim or mock multipart file uploads.
+
+**Rationale:** Accurately reflects actual storage mechanism. Administrators curate verified institutional links (Google Drive, university portals, library links, official PDFs). External URLs are validated strictly for `http://` or `https://` schemes. All authenticated students can read, filter, and search; only administrators may create, update, or delete resources.
+**Date:** 2026-11-15
+
+---
+
+## TD-023: Event RSVPs With Database-Level Unique Constraint
+
+**Decision:** Enforce event attendance uniqueness via database-level `UniqueConstraint("event_id", "user_id", name="uq_event_rsvps_event_user")`. Implement idempotent RSVP toggle and capacity limit checks.
+
+**Rationale:** Guarantees that concurrent student registrations cannot create duplicate attendee records. RSVP status (`attending`, `interested`) can be updated idempotently. Past events cannot be registered for, and capacity limits are verified before record creation.
+**Date:** 2026-11-15
+
+---
+
+## TD-024: Persistence-First Notification Delivery
+
+**Decision:** Notifications are committed to PostgreSQL before attempting real-time WebSocket delivery. Wrap WebSocket broadcast in try-except logging to ensure delivery failure never rolls back the notification.
+
+**Rationale:** Guarantees zero notification loss if a recipient is offline or temporarily disconnected when an event triggers. Duplicate connection requests from the same user are prevented while unread.
+**Date:** 2026-11-15
+
 

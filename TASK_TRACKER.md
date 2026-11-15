@@ -1,6 +1,6 @@
 # Campus Connect — Task Tracker
 
-**Last Updated:** 2026-11-15 (Phase 5 complete, commit `3e3ba53`)
+**Last Updated:** 2026-11-15 (Phase 6 complete, awaiting Git checkpoint)
 
 Legend: ⬜ Not Started | 🔄 In Progress | 🚧 Blocked | ✅ Implemented | 🧪 Tested | ✔️ Completed
 
@@ -121,19 +121,19 @@ Legend: ⬜ Not Started | 🔄 In Progress | 🚧 Blocked | ✅ Implemented | �
 
 | ID | Task | Status | Notes |
 |----|------|--------|-------|
-| P6-01 | Create Notification model | ⬜ Not Started | `models/notification.py` |
-| P6-02 | Create Resource model | ⬜ Not Started | `models/resource.py` |
-| P6-03 | Create Event model | ⬜ Not Started | `models/event.py` |
-| P6-04 | Create Alembic migration (notifications + resources) | ⬜ Not Started | — |
-| P6-05 | Create notification API | ⬜ Not Started | List, mark-read, count |
-| P6-06 | Trigger notifications from app events | ⬜ Not Started | Connections, messages |
-| P6-07 | Create resources API | ⬜ Not Started | CRUD |
-| P6-08 | Create events API | ⬜ Not Started | CRUD |
-| P6-09 | Create seed data script | ⬜ Not Started | Demo resources/events |
-| P6-10 | Create Notifications panel | ⬜ Not Started | Bell → dropdown |
-| P6-11 | Create Resources page | ⬜ Not Started | `src/pages/Resources.jsx` |
-| P6-12 | Create Events page | ⬜ Not Started | `src/pages/Events.jsx` |
-| P6-13 | Create Settings page | ⬜ Not Started | `src/pages/Settings.jsx` |
+| P6-01 | Create Notification model | ✔️ Completed | `models/notification.py` with CASCADE user, SET NULL actor, unread & created indexes |
+| P6-02 | Create Resource model | ✔️ Completed | `models/resource.py` with categorized external links, validated HTTP/HTTPS URLs |
+| P6-03 | Create Event model | ✔️ Completed | `models/event.py` with Event and EventRSVP, `uq_event_rsvps_event_user` unique constraint |
+| P6-04 | Create Alembic migration (notifications + resources) | ✔️ Completed | Revision `055c082ed165` applied and verified; dev DB records preserved intact |
+| P6-05 | Create notification API | ✔️ Completed | `api/notifications.py` (paginated list, unread-count, mark-read, read-all, delete, isolation) |
+| P6-06 | Trigger notifications from app events | ✔️ Completed | Real-time push + DB persistence on connections, announcements, and moderation outcomes |
+| P6-07 | Create resources API | ✔️ Completed | `api/resources.py` (public student read/search/filter, admin-gated CRUD, URL validation) |
+| P6-08 | Create events API | ✔️ Completed | `api/events.py` (upcoming/past tabs, attendee count, idempotent RSVP toggle, capacity check) |
+| P6-09 | Create seed data script | ✔️ Completed | `scripts/seed_phase6.py` idempotent seeding (5 resources, 4 events, 0 duplicates on repeat) |
+| P6-10 | Create Notifications panel | ✔️ Completed | `components/NotificationsDropdown.jsx` in topbar with badge, real-time push, mark all read |
+| P6-11 | Create Resources page | ✔️ Completed | `pages/Resources.jsx` with category pills, keyword search, external link buttons, admin modal |
+| P6-12 | Create Events page | ✔️ Completed | `pages/Events.jsx` with upcoming/past tabs, RSVP toggle, live attendee counts, admin modal |
+| P6-13 | Create Settings page | ✔️ Completed | `pages/Settings.jsx` with Argon2 password change, token_version multi-session invalidation |
 
 ---
 
@@ -170,7 +170,8 @@ Legend: ⬜ Not Started | 🔄 In Progress | 🚧 Blocked | ✅ Implemented | �
 | Phase 3 | 13 | 13 | 0 | 0 |
 | Phase 4 | 10 | 10 | 0 | 0 |
 | Phase 5 | 15 | 15 | 0 | 0 |
-| Phase 6 | 13 | 0 | 0 | 0 |
+| Phase 6 | 13 | 13 | 0 | 0 |
 | Phase 7 | 16 | 0 | 0 | 0 |
-| **Total** | **98** | **69** | **0** | **0** |
+| **Total** | **98** | **82** | **0** | **0** |
 
+                                        

@@ -17,6 +17,9 @@ import app.models.like
 import app.models.connection
 import app.models.conversation
 import app.models.message
+import app.models.notification
+import app.models.resource
+import app.models.event
 
 
 config = context.config
@@ -49,7 +52,11 @@ def run_migrations_online() -> None:
         {},
     )
 
-    configuration["sqlalchemy.url"] = config.get_main_option("sqlalchemy.url") or settings.database_url
+    ini_url = config.get_main_option("sqlalchemy.url")
+    if not ini_url or ini_url.startswith("driver://"):
+        configuration["sqlalchemy.url"] = settings.database_url
+    else:
+        configuration["sqlalchemy.url"] = ini_url
 
     connectable = engine_from_config(
         configuration,

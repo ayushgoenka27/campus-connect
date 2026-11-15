@@ -15,6 +15,59 @@ Format:
 
 ---
 
+## [2026-11-15] — Phase 6 Notifications & Campus Resources Module Complete
+
+### Added
+- `backend/app/models/notification.py` — `Notification` ORM model (`user_id` FK CASCADE, `actor_id` FK SET NULL, `type`, `title`, `content`, `link`, `is_read`, `read_at`, `created_at`) with indices on `(user_id, is_read)` and `(user_id, created_at)`.
+- `backend/app/models/resource.py` — `Resource` ORM model for curated academic documents, syllabus guides, question papers, lab manuals, and portals (`title`, `description`, `category`, `resource_type`, `url`, `created_by_id` FK SET NULL, timestamps).
+- `backend/app/models/event.py` — `Event` and `EventRSVP` ORM models with `UniqueConstraint("event_id", "user_id", name="uq_event_rsvps_event_user")` to guarantee unique attendee registrations per event.
+- `backend/app/models/user.py` — Added `token_version: Mapped[int]` (default 1, server_default "1") for session invalidation across devices on password change.
+- `backend/migrations/versions/055c082ed165_add_notifications_resources_events_.py` — Alembic revision creating `notifications`, `resources`, `events`, `event_rsvps` tables, unique constraint `uq_event_rsvps_event_user`, and adding `token_version` column to `users`.
+- `backend/app/schemas/notification.py` — Pydantic schemas for `NotificationResponse`, `NotificationList`, `UnreadNotificationCount`.
+- `backend/app/schemas/resource.py` — Pydantic schemas for `ResourceCreate`, `ResourceUpdate`, `ResourceResponse`, `ResourceList` with strict HTTP/HTTPS URL scheme validation.
+- `backend/app/schemas/event.py` — Pydantic schemas for `EventCreate`, `EventUpdate`, `EventResponse`, `EventList`, `RSVPRequest`, `RSVPResponse` with end date >= start date validation.
+- `backend/app/schemas/auth.py` — Added `ChangePasswordRequest` (min 8 chars, password match validator) and `ChangePasswordResponse`.
+- `backend/app/services/notification_service.py` — Service layer for DB-first notification persistence with duplicate prevention, and non-blocking real-time WebSocket delivery via `manager.send_to_user`.
+- `backend/app/api/notifications.py` — REST API (`/api/v1/notifications`): paginated notifications list, unread counter badge endpoint, mark single read (`PATCH /{id}/read`), mark all read (`PATCH /read-all`), and delete (`DELETE /{id}`) with strict ownership isolation.
+- `backend/app/api/resources.py` — REST API (`/api/v1/resources`): public student catalog with category filtering and keyword search; administrator-only create, update, and delete endpoints.
+- `backend/app/api/events.py` — REST API (`/api/v1/events`): upcoming/past filtering, keyword search, attendee counts; idempotent RSVP registration (`POST /{id}/rsvp`), past-event guard, capacity limit enforcement, RSVP cancellation (`DELETE /{id}/rsvp`).
+- `backend/scripts/seed_phase6.py` — Idempotent database seed script adding 5 curated academic resources and 4 campus events without altering baseline records.
+- `backend/tests/test_phase6.py` — 6 automated pytest suites covering password change token invalidation, notification lifecycle and isolation, connection notification triggers, resource RBAC, and event RSVP lifecycle.
+- `frontend/src/components/NotificationsDropdown.jsx` — Topbar notification dropdown with unread badge counter, real-time push ingestion via WebSocket, mark all read, deep-link navigation, and deletion.
+- `frontend/src/pages/Resources.jsx` — Full-featured resources catalog with category pills, keyword search, external link buttons, and admin create/edit/delete modals.
+- `frontend/src/pages/Events.jsx` — Campus activities interface with upcoming vs past tabs, category filter, search, RSVP toggle button with live attendee count, and admin event composer modal.
+- `frontend/src/pages/Settings.jsx` — Account security interface with password change form, client-side confirmation checks, token version refresh, and session logout.
+- `frontend/src/tests/Phase6.test.jsx` — 6 Vitest suites covering NotificationsDropdown, Resources catalog, Events RSVP, and Settings password change.
+- `scratch/p6_browser_e2e.py` — 5-scenario Playwright E2E browser suite executed in real Chrome against live FastAPI, PostgreSQL, and Vite.
+
+### Changed
+- `backend/app/core/security.py`: Added `token_version: int = 1` parameter to `create_access_token` and embedded `"tv"` claim in JWT payload.
+- `backend/app/core/dependencies.py`: Updated `get_current_user` to check `token_tv < user.token_version` and return HTTP 401 Unauthorized for revoked tokens.
+- `backend/app/api/auth.py`: Added `POST /api/v1/auth/change-password` endpoint hashing new password with Argon2, incrementing `user.token_version`, and disconnecting active WebSockets via `manager.disconnect_user`. Updated `/api/v1/auth/me` to use `get_authenticated_user` for token version enforcement.
+- `backend/app/api/websocket.py`: Updated `_authenticate_ws` to reject connection if token's `"tv"` claim is less than `user.token_version`.
+- `backend/app/api/connections.py`: Triggered `connection_request` notification on request send and `connection_accepted` on acceptance.
+- `backend/app/api/announcements.py`: Triggered `announcement` broadcast notification to all active users on announcement publish.
+- `backend/app/api/admin.py`: Triggered `moderation` outcome notification to reporter upon report resolution or dismissal.
+- `backend/app/main.py`: Mounted `notifications_router`, `resources_router`, and `events_router` under `/api/v1`.
+- `frontend/src/App.jsx`: Replaced ComingSoon placeholders with `Events`, `Resources`, and `Settings` components.
+- `frontend/src/layout/AppLayout.jsx`: Replaced placeholder bell icon with `<NotificationsDropdown />`.
+- `frontend/src/hooks/useWebSocket.js`: Added `onNotification` handler for real-time WebSocket push notifications.
+- `frontend/src/context/AuthContext.jsx`: Added `updateToken` helper for updating token without unmounting protected routes.
+
+### Database Changes
+- Applied Alembic revision `055c082ed165` to dev database `campus_connect`.
+- Preserved all 7 baseline users, 3 connections, 1 post, and 1 like intact.
+- Idempotently seeded 5 academic resources and 4 campus events.
+
+### Tests Executed
+- Backend `pytest tests/ -v`: **80/80 passed** (100% pass rate in 14.40s).
+- Frontend `npm run test` (Vitest + RTL): **24/24 passed** (100% pass rate in 5.37s).
+- Frontend `npm run lint` (ESLint): **Clean (0 errors, 0 warnings)**.
+- Frontend `npm run build` (Vite production build): **Clean (920ms, 1901 modules)**.
+- Live Browser UI E2E (Phase 6): **5/5 passed in real Chrome** via Playwright (`scratch/p6_browser_e2e.py`).
+
+---
+
 ## [2026-11-15] — Phase 5 Real-Time Messaging Module Complete (commit 3e3ba53)
 
 ### Added

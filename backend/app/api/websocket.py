@@ -22,10 +22,10 @@ logger = logging.getLogger("campus_connect.websocket")
 router = APIRouter(tags=["WebSocket"])
 
 
-def _authenticate_ws(token: Optional[str], db: Session) -> Optional[int]:
+def _authenticate_ws(token: Optional[str], db: Session) -> Optional[tuple[int, int]]:
     """
-    Validates JWT token for WebSocket connection (TD-012, FR-MSG-1).
-    Returns user_id if valid and active, else None.
+    Validates JWT token for WebSocket connection (TD-012, FR-MSG-1, FR-SET-1).
+    Returns (user_id, token_tv) if valid, active, and token_version exactly matches, else None.
     """
     if not token:
         return None
@@ -48,7 +48,13 @@ def _authenticate_ws(token: Optional[str], db: Session) -> Optional[int]:
     if not user or not user.is_active:
         return None
 
-    return user_id
+    # Check exact token_version match for session invalidation (FR-SET-1)
+    token_tv = payload.get("tv")
+    if token_tv is None or token_tv != getattr(user, "token_version", 1):
+        logger.warning(f"WebSocket auth failed: token version {token_tv} mismatched for user {user_id}")
+        return None
+
+    return user_id, token_tv
 
 
 @router.websocket("/ws")
@@ -61,12 +67,13 @@ async def websocket_endpoint(
     Real-time bidirectional WebSocket gateway (FR-MSG-1 through FR-MSG-5).
     Secured by JWT query parameter '?token=<jwt>'.
     """
-    user_id = _authenticate_ws(token, db)
-    if not user_id:
+    auth_result = _authenticate_ws(token, db)
+    if not auth_result:
         # Refuse connection with 1008 Policy Violation
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
+    user_id, token_tv = auth_result
     await manager.connect(user_id, websocket)
 
     # Send initial welcome state with online users list
@@ -94,9 +101,13 @@ async def websocket_endpoint(
 
             msg_type = data.get("type")
 
-            # Verify user remains active (FR-ADM-3)
+            # Verify user remains active (FR-ADM-3) and token_version has not changed (FR-SET-1)
             current_user = db.scalar(select(User).where(User.id == user_id))
-            if not current_user or not current_user.is_active:
+            if (
+                not current_user
+                or not current_user.is_active
+                or token_tv != getattr(current_user, "token_version", 1)
+            ):
                 await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
                 return
 

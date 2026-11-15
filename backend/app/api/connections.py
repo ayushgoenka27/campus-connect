@@ -7,6 +7,7 @@ from app.core.dependencies import get_current_user_id
 from app.db.dependencies import get_db
 from app.models.connection import Connection
 from app.models.user import User
+from app.services.notification_service import notify_user
 
 
 router = APIRouter(
@@ -32,7 +33,7 @@ def _serialize_connection_user(user: User) -> dict:
 
 # Send a connection request
 @router.post("/{user_id}", status_code=status.HTTP_201_CREATED)
-def send_connection_request(
+async def send_connection_request(
     user_id: int,
     current_user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
@@ -95,6 +96,19 @@ def send_connection_request(
         )
     db.refresh(connection)
 
+    # Trigger notification for connection request (FR-NOTIF-1)
+    sender = db.scalar(select(User).where(User.id == current_user_id))
+    sender_name = (sender.full_name or sender.username) if sender else "Someone"
+    await notify_user(
+        db=db,
+        user_id=user_id,
+        type="connection_request",
+        title="New Connection Request",
+        content=f"{sender_name} sent you a connection request.",
+        link="/connections",
+        actor_id=current_user_id,
+    )
+
     return {
         "message": "Connection request sent successfully",
         "connection": {
@@ -137,7 +151,7 @@ def get_connections(
 
 # Accept or reject a connection request
 @router.patch("/{connection_id}")
-def update_connection(
+async def update_connection(
     connection_id: int,
     action: str,
     current_user_id: int = Depends(get_current_user_id),
@@ -178,6 +192,20 @@ def update_connection(
 
     db.commit()
     db.refresh(connection)
+
+    # Trigger notification if accepted (FR-NOTIF-1)
+    if action == "accepted":
+        acceptor = db.scalar(select(User).where(User.id == current_user_id))
+        acceptor_name = (acceptor.full_name or acceptor.username) if acceptor else "A user"
+        await notify_user(
+            db=db,
+            user_id=connection.sender_id,
+            type="connection_accepted",
+            title="Connection Accepted",
+            content=f"{acceptor_name} accepted your connection request.",
+            link=f"/profile/{current_user_id}",
+            actor_id=current_user_id,
+        )
 
     return {
         "message": f"Connection request {action}",

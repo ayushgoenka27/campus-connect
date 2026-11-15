@@ -25,6 +25,7 @@ from app.models.moderation_log import ModerationLog
 from app.models.post import Post
 from app.models.report import Report
 from app.models.user import User
+from app.services.notification_service import notify_user
 from app.schemas.admin import (
     AdminStats,
     AdminUserList,
@@ -234,7 +235,7 @@ def list_reports(
 # PATCH /admin/reports/{id} — moderate a report (FR-ADM-2, FR-ADM-4)
 # ---------------------------------------------------------------------------
 @router.patch("/reports/{report_id}", response_model=ReportResponse)
-def moderate_report(
+async def moderate_report(
     report_id: int,
     payload: ModerationRequest,
     current_admin: User = Depends(get_current_admin),
@@ -303,5 +304,19 @@ def moderate_report(
 
     db.commit()
     db.refresh(report)
+
+    # Notify reporter if known (FR-NOTIF-1)
+    if report.reporter_id:
+        outcome = "dismissed" if action_str == "dismiss" else f"resolved ({report.action_taken})"
+        await notify_user(
+            db=db,
+            user_id=report.reporter_id,
+            type="moderation",
+            title="Moderation Update",
+            content=f"Your report regarding {report.target_type} has been {outcome}.",
+            link="/community",
+            actor_id=current_admin.id,
+        )
+
     return _serialize_report(report)
 

@@ -1,7 +1,7 @@
 # Campus Connect — Testing Report
 
-**Version:** 1.2  
-**Last Updated:** 2026-11-15 (Phase 5 complete, commit `3e3ba53`)
+**Version:** 1.3  
+**Last Updated:** 2026-11-15 (Phase 6 complete, awaiting Git checkpoint)
 
 ---
 
@@ -9,15 +9,15 @@
 
 | Metric | Value |
 |--------|-------|
-| Backend API & DB tests (`pytest`) | 74 suites (8 in `test_api.py` + 12 in `test_community.py` + 37 in `test_announcements.py` + 17 in `test_messages.py`, SQLite in-memory) |
-| Backend tests passing | 74 / 74 (100%) in 13.10s |
-| Frontend component tests (`Vitest + RTL`) | 18 suites (`Community` 4, `Connections` 2, `Announcements` 4, `AdminDashboard` 3, `Messages` 5, `jsdom` + mocked API) |
-| Frontend tests passing | 18 / 18 (100%) in 6.31s |
+| Backend API & DB tests (`pytest`) | 80 suites (8 in `test_api.py` + 12 in `test_community.py` + 37 in `test_announcements.py` + 17 in `test_messages.py` + 6 in `test_phase6.py`, SQLite in-memory) |
+| Backend tests passing | 80 / 80 (100%) in 14.40s |
+| Frontend component tests (`Vitest + RTL`) | 24 suites (`Community` 4, `Connections` 2, `Announcements` 4, `AdminDashboard` 3, `Messages` 5, `Phase6` 6, `jsdom` + mocked API) |
+| Frontend tests passing | 24 / 24 (100%) in 5.37s |
 | Frontend ESLint status | Clean (0 errors, 0 warnings) |
-| Frontend production build | Clean (`npm run build` in 844ms, 1,898 modules) |
-| Isolated DB migration tests (`Alembic`) | Passed (`upgrade head` -> `downgrade 6a912f8eac82` -> `upgrade head` on isolated temp PostgreSQL DB `campus_connect_p5_verify` up to `d3160fc03d74`) |
-| PostgreSQL dev database connection | Verified (`campus_connect` on localhost:5432, head `d3160fc03d74`, 7 users / 3 connections / 1 post / 1 like intact) |
-| Live Browser UI E2E (Phase 5 Messaging) | 9 / 9 passed in real Chrome (`scratch/p5_browser_e2e.py` against live FastAPI + PostgreSQL + Vite) |
+| Frontend production build | Clean (`npm run build` in 920ms, 1,901 modules) |
+| Isolated DB migration tests (`Alembic`) | Passed (`upgrade head` -> `downgrade 6a912f8eac82` -> `upgrade head` on isolated temp PostgreSQL DB `campus_connect_p6_verify` up to `055c082ed165`) |
+| PostgreSQL dev database connection | Verified (`campus_connect` on localhost:5432, head `055c082ed165`, 7 users / 3 connections / 1 post / 1 like intact; 5 resources / 4 events seeded) |
+| Live Browser UI E2E (Phase 6) | 5 / 5 passed in real Chrome (`scratch/p6_browser_e2e.py` against live FastAPI + PostgreSQL + Vite) |
 
 ---
 

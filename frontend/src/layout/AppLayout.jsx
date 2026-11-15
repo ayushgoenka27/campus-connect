@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
-  Bell,
   BookOpen,
   CalendarDays,
   Hash,
@@ -18,6 +17,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import client from "../api/client";
+import NotificationsDropdown from "../components/NotificationsDropdown";
 
 /** Derives two-letter initials from a full name. */
 function getInitials(fullName) {
@@ -287,13 +287,8 @@ export default function AppLayout() {
 
             {/* Right side: notifications + user */}
             <div className="ml-auto flex items-center gap-2">
-              {/* Notifications bell */}
-              <button
-                className="relative rounded-xl border border-slate-200 bg-white p-2.5 text-slate-500 transition hover:bg-slate-50 hover:text-slate-900"
-                aria-label="Notifications"
-              >
-                <Bell size={19} />
-              </button>
+              {/* Notifications bell dropdown */}
+              <NotificationsDropdown />
 
               <div className="ml-1 hidden h-8 w-px bg-slate-200 sm:block" />
 

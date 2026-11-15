@@ -1,4 +1,5 @@
-from pydantic import BaseModel, EmailStr, Field
+from typing import Optional
+from pydantic import BaseModel, EmailStr, Field, model_validator
 
 
 class RegisterRequest(BaseModel):
@@ -35,3 +36,21 @@ class AuthMeResponse(BaseModel):
     username: str
     email: EmailStr
     role: str
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(..., min_length=1, description="Current account password")
+    new_password: str = Field(..., min_length=8, max_length=128, description="New password with minimum 8 characters")
+    confirm_password: Optional[str] = Field(None, min_length=8, max_length=128, description="Confirm new password")
+
+    @model_validator(mode="after")
+    def validate_password_confirmation(self):
+        if self.confirm_password is not None and self.new_password != self.confirm_password:
+            raise ValueError("New password and confirm password do not match")
+        return self
+
+
+class ChangePasswordResponse(BaseModel):
+    message: str
+    access_token: str
+    token_type: str = "bearer"

@@ -5,7 +5,7 @@ import { useAuth } from "../context/AuthContext";
  * Custom hook for real-time WebSocket communication (FR-MSG-1 through FR-MSG-5, FR-ERR-5, FR-ERR-6).
  * Handles authentication, heartbeats, exponential backoff reconnection, and event dispatch.
  */
-export function useWebSocket({ onNewMessage, onReadReceipt, onTyping } = {}) {
+export function useWebSocket({ onNewMessage, onReadReceipt, onTyping, onNotification } = {}) {
   const { token, user } = useAuth();
   const [isConnected, setIsConnected] = useState(false);
   const [onlineUserIds, setOnlineUserIds] = useState(new Set());
@@ -20,11 +20,13 @@ export function useWebSocket({ onNewMessage, onReadReceipt, onTyping } = {}) {
   const onNewMessageRef = useRef(onNewMessage);
   const onReadReceiptRef = useRef(onReadReceipt);
   const onTypingRef = useRef(onTyping);
+  const onNotificationRef = useRef(onNotification);
 
   useEffect(() => {
     onNewMessageRef.current = onNewMessage;
     onReadReceiptRef.current = onReadReceipt;
     onTypingRef.current = onTyping;
+    onNotificationRef.current = onNotification;
   });
 
   const authToken = token || (typeof window !== "undefined" ? localStorage.getItem("campus_connect_token") : null);
@@ -96,6 +98,10 @@ export function useWebSocket({ onNewMessage, onReadReceipt, onTyping } = {}) {
           } else if (data.type === "typing") {
             if (onTypingRef.current) {
               onTypingRef.current(data);
+            }
+          } else if (data.type === "notification") {
+            if (onNotificationRef.current) {
+              onNotificationRef.current(data.notification);
             }
           }
         } catch {

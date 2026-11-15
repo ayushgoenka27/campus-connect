@@ -12,9 +12,9 @@ from app.models.user import User
 security = HTTPBearer()
 
 
-def get_current_user_id(
+def get_current_token_payload(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-) -> int:
+) -> dict:
     token = credentials.credentials
 
     try:
@@ -32,7 +32,7 @@ def get_current_user_id(
                 detail="Invalid token",
             )
 
-        return int(user_id)
+        return payload
 
     except (jwt.InvalidTokenError, ValueError):
         raise HTTPException(
@@ -41,10 +41,17 @@ def get_current_user_id(
         )
 
 
+def get_current_user_id(
+    payload: dict = Depends(get_current_token_payload),
+) -> int:
+    return int(payload["sub"])
+
+
 def get_current_user(
-    user_id: int = Depends(get_current_user_id),
+    payload: dict = Depends(get_current_token_payload),
     db: Session = Depends(get_db),
 ) -> User:
+    user_id = int(payload["sub"])
     user = db.scalar(select(User).where(User.id == user_id))
 
     if not user:
@@ -57,6 +64,14 @@ def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is inactive",
+        )
+
+    # Invalidate session if token_version does not exactly match user's current token_version (FR-SET-1)
+    token_tv = payload.get("tv")
+    if token_tv is None or token_tv != getattr(user, "token_version", 1):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked or invalidated; please log in again",
         )
 
     return user

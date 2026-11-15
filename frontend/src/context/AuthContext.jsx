@@ -81,6 +81,11 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
+  const updateToken = useCallback((newToken) => {
+    localStorage.setItem("campus_connect_token", newToken);
+    setToken(newToken);
+  }, []);
+
   const refreshUser = useCallback(async () => {
     await fetchUser();
   }, [fetchUser]);
@@ -91,6 +96,7 @@ export function AuthProvider({ children }) {
     loading,
     login,
     logout,
+    updateToken,
     refreshUser,
     isAuthenticated: !!user,
   };

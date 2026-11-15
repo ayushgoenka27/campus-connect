@@ -76,6 +76,14 @@ class User(Base):
         nullable=False,
     )
 
+    token_version: Mapped[int] = mapped_column(
+        Integer,
+        default=1,
+        server_default="1",
+        nullable=False,
+        doc="Incremented on password change to invalidate earlier JWTs",
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=datetime.utcnow,

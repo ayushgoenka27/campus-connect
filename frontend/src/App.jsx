@@ -11,9 +11,11 @@ import Announcements from "./pages/Announcements";
 import AdminDashboard from "./pages/AdminDashboard";
 import Profile from "./pages/Profile";
 import Messages from "./pages/Messages";
+import Events from "./pages/Events";
+import Resources from "./pages/Resources";
+import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import ComingSoon from "./pages/ComingSoon";
 
 export default function App() {
   return (
@@ -32,35 +34,11 @@ export default function App() {
               <Route path="/connections" element={<Connections />} />
               <Route path="/messages" element={<Messages />} />
               <Route path="/community" element={<Community />} />
-              <Route
-                path="/events"
-                element={
-                  <ComingSoon
-                    title="Campus Events"
-                    description="Explore and keep track of workshops, hackathons, and gatherings."
-                  />
-                }
-              />
+              <Route path="/events" element={<Events />} />
               <Route path="/announcements" element={<Announcements />} />
-              <Route
-                path="/resources"
-                element={
-                  <ComingSoon
-                    title="Academic Resources"
-                    description="Access syllabus materials, question papers, and shared guides."
-                  />
-                }
-              />
+              <Route path="/resources" element={<Resources />} />
               <Route path="/profile" element={<Profile />} />
-              <Route
-                path="/settings"
-                element={
-                  <ComingSoon
-                    title="Settings"
-                    description="Configure your account preferences and credentials."
-                  />
-                }
-              />
+              <Route path="/settings" element={<Settings />} />
 
               {/* Admin-only routes */}
               <Route element={<AdminRoute />}>

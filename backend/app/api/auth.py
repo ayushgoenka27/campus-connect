@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from app.core.dependencies import get_current_user_id
+from app.core.dependencies import get_current_user_id, get_current_user as get_authenticated_user
 from app.core.security import (
     create_access_token,
     hash_password,
     verify_password,
 )
+from app.core.websocket import manager
 from app.db.dependencies import get_db
 from app.models.user import User
 from app.schemas.auth import (
@@ -15,6 +16,8 @@ from app.schemas.auth import (
     LoginRequest,
     TokenResponse,
     AuthMeResponse,
+    ChangePasswordRequest,
+    ChangePasswordResponse,
 )
 
 
@@ -90,10 +93,61 @@ def login(
             detail="User account is inactive",
         )
 
-    access_token = create_access_token(user.id)
+    access_token = create_access_token(
+        user.id,
+        token_version=getattr(user, "token_version", 1),
+    )
 
     return {
         "access_token": access_token,
+        "token_type": "bearer",
+    }
+
+
+@router.post(
+    "/change-password",
+    response_model=ChangePasswordResponse,
+)
+async def change_password(
+    data: ChangePasswordRequest,
+    current_user: User = Depends(get_authenticated_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Secure password change endpoint (FR-SET-1).
+    Validates current password, updates to Argon2 hash, increments token_version to
+    invalidate all previous sessions/tokens, and terminates active WebSockets.
+    """
+    if not verify_password(data.current_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect",
+        )
+
+    if verify_password(data.new_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be different from current password",
+        )
+
+    # Invalidate all existing sessions by incrementing token_version
+    current_user.password_hash = hash_password(data.new_password)
+    current_user.token_version = getattr(current_user, "token_version", 1) + 1
+    db.commit()
+    db.refresh(current_user)
+
+    # Disconnect any open WebSocket connections immediately
+    await manager.disconnect_user(current_user.id, code=1008)
+
+    # Issue fresh token for the current session reflecting the new token_version
+    new_token = create_access_token(
+        user_id=current_user.id,
+        token_version=current_user.token_version,
+    )
+
+    return {
+        "message": "Password changed successfully",
+        "access_token": new_token,
         "token_type": "bearer",
     }
 
@@ -102,30 +156,13 @@ def login(
     "/me",
     response_model=AuthMeResponse,
 )
-def get_current_user(
-    user_id: int = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
+def get_current_user_profile(
+    current_user: User = Depends(get_authenticated_user),
 ):
-    user = db.scalar(
-        select(User).where(User.id == user_id)
-    )
-
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )
-
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User account is inactive",
-        )
-
     return {
-        "id": user.id,
-        "full_name": user.full_name,
-        "username": user.username,
-        "email": user.email,
-        "role": user.role,
+        "id": current_user.id,
+        "full_name": current_user.full_name,
+        "username": current_user.username,
+        "email": current_user.email,
+        "role": current_user.role,
     }
