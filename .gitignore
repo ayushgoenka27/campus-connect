@@ -1,4 +1,3 @@
-
 # Python
 __pycache__/
 *.py[cod]
@@ -13,6 +12,8 @@ env/
 # Environment variables
 .env
 .env.*
+!.env.docker
+!.env.example
 
 # Node
 node_modules/
@@ -31,3 +32,7 @@ Thumbs.db
 
 # Scratch scripts
 scratch/
+
+# Docker production secrets
+.env.prod
+.env.local

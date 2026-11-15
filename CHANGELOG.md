@@ -15,6 +15,36 @@ Format:
 
 ---
 
+## [2026-11-15] — Phase 7 Containerization, Deployment & Handover Assets (P7-10 to P7-16)
+
+### Added
+- `backend/Dockerfile` — Multi-stage production Docker build (`python:3.11-slim`), isolated virtual environment builder, non-root runtime execution (`appuser:appgroup`, uid 1001), liveness healthcheck probe on `/health`, production Uvicorn entrypoint (P7-10).
+- `backend/docker-entrypoint.sh` — Container startup orchestration: PostgreSQL connection polling with SQLAlchemy `create_engine` (compatible with `postgresql+psycopg://`), automatic `alembic upgrade head` migration execution, configurable worker count (P7-10).
+- `frontend/Dockerfile` — Multi-stage production Docker build (`node:20-slim` builder + `nginx:1.27-alpine` runtime), non-root permissions, healthcheck probe on `/health.txt` (P7-11).
+- `frontend/nginx.conf` — Production SPA configuration: static file serving with aggressive caching, HTML5 pushState fallback (`try_files $uri /index.html`), API reverse proxy to `http://backend:8000/api/`, WebSocket reverse proxy to `/ws` with proper `Upgrade` & `Connection` headers and buffer bypass, gzip compression (P7-11).
+- `docker-compose.yml` — Multi-service container orchestration: `db` (`postgres:16-alpine` with healthcheck and persistent volumes), `backend` (FastAPI with db health dependency), `frontend` (Nginx with backend health dependency), isolated bridge network `cc_net`, persistent data volumes (`campus_connect_pgdata`, `campus_connect_backups`) (P7-12).
+- `.env.docker` — Production configuration template with placeholder credentials, CORS parameters, and trusted subnet configuration for reverse proxy client IP forwarding (P7-12).
+- `scripts/backup.sh` & `scripts/restore.sh` — PostgreSQL container backup and restoration scripts supporting isolated test database restoration (`RESTORE_DB`), production overwrite confirmation prompt, and table count verification (P7-13).
+- `DEPLOYMENT.md` — Comprehensive operations guide: zero-budget local Docker Compose deployment, 4 free public hosting options (Railway, Render, Fly.io, LAN/ngrok), operational runbooks, and troubleshooting (P7-15).
+- `BACKUP_RESTORE.md` — Complete database backup and restoration manual with rollback and retention policies (P7-13).
+- `ARCHITECTURE.md` — Detailed system architecture specification: ASCII network diagrams, technology stack, relational schema, Alembic migration chain, endpoint map, WebSocket event protocol, security architecture, and SRS traceability matrix (P7-16).
+- `FINAL_DEMO_GUIDE.md` — Final evaluation demo guide featuring an 11-scene walkthrough script, quickstart guides, and test coverage matrix (P7-16).
+
+### Changed
+- `frontend/src/api/client.js` — Made API base URL production-aware: defaults to relative `/api/v1` in production behind Nginx reverse proxy while preserving `http://127.0.0.1:8000/api/v1` in local development (P7-11).
+- `frontend/src/hooks/useWebSocket.js` — Made WebSocket connection production-aware: dynamically uses `window.location.host` without hardcoding port `8000` when running behind Nginx (P7-11).
+- `.gitignore` — Added `.env.prod`, `.env.local` to prevent committing secrets; exempted safe templates `!.env.docker` and `!.env.example`.
+
+### Verification Status
+- **Backend pytest:** 90/90 passed in 14.79s (100%)
+- **Frontend Vitest:** 28/28 passed in 5.52s (100%)
+- **Frontend ESLint:** 0 errors, 0 warnings
+- **Production Build:** Clean — 251.86 kB main bundle (79.82 kB gzip)
+- **Script Syntax:** `docker-entrypoint.sh`, `backup.sh`, `restore.sh` verified with LF line endings and proper argument handling
+- **Docker Runtime:** Note: Docker Engine is unavailable on this host; container builds and Compose execution are structurally verified and marked pending live Docker host verification.
+
+---
+
 ## [2026-11-15] — Phase 7 Integration & Browser Testing Complete (P7-01, P7-02)
 
 ### Added

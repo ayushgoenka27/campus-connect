@@ -1,7 +1,14 @@
 import axios from "axios";
 
+// In production (Docker/Nginx), the frontend is served from the same origin as the
+// reverse-proxied API, so relative URLs work. In development, Vite's dev server
+// must be started with the backend running on port 8000.
+const API_BASE =
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.PROD ? "/api/v1" : "http://127.0.0.1:8000/api/v1");
+
 const api = axios.create({
-  baseURL: "http://127.0.0.1:8000/api/v1",
+  baseURL: API_BASE,
   headers: {
     "Content-Type": "application/json",
   },

@@ -1,0 +1,12 @@
+# Root .dockerignore — prevents secrets/scratch from leaking into build contexts
+.env.prod
+.env.local
+scratch/
+backups/
+*.dump
+.git/
+.gitignore
+*.md
+!backend/
+!frontend/
+

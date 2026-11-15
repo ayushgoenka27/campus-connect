@@ -1,0 +1,111 @@
+# =============================================================================
+# Campus Connect — Docker Compose Full-Stack Orchestration (P7-12)
+# =============================================================================
+# Services:
+#   db        — PostgreSQL 16 with persistent volume
+#   backend   — FastAPI (Uvicorn, non-root, multi-stage build)
+#   frontend  — React SPA served by Nginx (reverse proxies API + WebSocket)
+#
+# Usage:
+#   cp .env.docker .env.prod        # fill in real secrets
+#   docker compose --env-file .env.prod up -d --build
+#   docker compose --env-file .env.prod down
+#
+# Data volumes:
+#   campus_connect_pgdata  — PostgreSQL data directory (persistent across restarts)
+#   campus_connect_backups — pg_dump backup outputs
+# =============================================================================
+
+services:
+
+  # ── PostgreSQL Database ─────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: cc_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       ${POSTGRES_DB:-campus_connect}
+      POSTGRES_USER:     ${POSTGRES_USER:-cc_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}       # Required — no default
+    volumes:
+      - campus_connect_pgdata:/var/lib/postgresql/data
+      - campus_connect_backups:/backups
+    networks:
+      - cc_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cc_user} -d ${POSTGRES_DB:-campus_connect}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    # PostgreSQL port NOT exposed to host by default.
+    # Uncomment the line below only for local DBA access:
+    # ports: ["127.0.0.1:5433:5432"]
+
+  # ── FastAPI Backend ─────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cc_backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL:    "postgresql+psycopg://${POSTGRES_USER:-cc_user}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-campus_connect}"
+      JWT_SECRET_KEY:  ${JWT_SECRET_KEY}            # Required — no default
+      JWT_ALGORITHM:   ${JWT_ALGORITHM:-HS256}
+      ENVIRONMENT:     ${ENVIRONMENT:-production}
+      CORS_ORIGINS:    ${CORS_ORIGINS:-http://localhost}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-172.16.0.0/12,10.0.0.0/8}
+      RATE_LIMIT_ENABLED:            ${RATE_LIMIT_ENABLED:-true}
+      RATE_LIMIT_AUTH_PER_MINUTE:    ${RATE_LIMIT_AUTH_PER_MINUTE:-15}
+      RATE_LIMIT_DEFAULT_PER_MINUTE: ${RATE_LIMIT_DEFAULT_PER_MINUTE:-60}
+      ALLOWED_EMAIL_DOMAINS:         ${ALLOWED_EMAIL_DOMAINS:-}
+      UVICORN_WORKERS: ${UVICORN_WORKERS:-2}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - cc_net
+    # Backend port NOT exposed to host — traffic flows through Nginx only.
+    # Uncomment for direct API debugging:
+    # ports: ["127.0.0.1:8000:8000"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
+
+  # ── Nginx Frontend + Reverse Proxy ──────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: cc_frontend
+    restart: unless-stopped
+    ports:
+      - "${HOST_PORT:-80}:80"           # HTTP — change HOST_PORT for alternate ports
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - cc_net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/health.txt || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+# ── Networks ────────────────────────────────────────────────────────────────
+networks:
+  cc_net:
+    driver: bridge
+
+# ── Volumes ─────────────────────────────────────────────────────────────────
+volumes:
+  campus_connect_pgdata:
+    # PostgreSQL data — survives container restarts and rebuilds
+  campus_connect_backups:
+    # Backup dump files — written by backup.sh, persisted across restarts
+

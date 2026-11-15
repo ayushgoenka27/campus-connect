@@ -43,10 +43,13 @@ export function useWebSocket({ onNewMessage, onReadReceipt, onTyping, onNotifica
       }
     }
 
-    const host = window.location.hostname || "127.0.0.1";
-    const port = 8000;
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const url = `${protocol}//${host}:${port}/ws?token=${encodeURIComponent(authToken)}`;
+    // In production (Nginx reverse proxy), WS is on the same host/port as the page.
+    // In development, the backend WebSocket runs on port 8000.
+    const wsHost = import.meta.env.PROD
+      ? window.location.host
+      : `${window.location.hostname || "127.0.0.1"}:8000`;
+    const url = `${protocol}//${wsHost}/ws?token=${encodeURIComponent(authToken)}`;
 
     try {
       const ws = new WebSocket(url);
