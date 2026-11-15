@@ -32,6 +32,18 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def normalize_database_url(cls, v):
+        if isinstance(v, str):
+            v = v.strip()
+            # Managed PostgreSQL providers (Neon, Render, Railway, Heroku) provide URLs starting
+            # with 'postgres://' or 'postgresql://'. In SQLAlchemy 2.0 with psycopg v3,
+            # this must be normalized to 'postgresql+psycopg://'.
+            import re
+            return re.sub(r"^postgres(ql)?://", "postgresql+psycopg://", v)
+        return v
+
     @field_validator("cors_origins", "trusted_proxies", "allowed_email_domains", mode="before")
     @classmethod
     def parse_comma_separated_list(cls, v):

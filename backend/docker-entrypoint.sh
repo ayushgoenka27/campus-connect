@@ -49,12 +49,14 @@ alembic upgrade head
 echo "[entrypoint] Migrations complete."
 
 # ── Start Uvicorn ─────────────────────────────────────────────────────────────
-WORKERS="${UVICORN_WORKERS:-2}"
-echo "[entrypoint] Starting Uvicorn with ${WORKERS} worker(s)..."
+# Enforce single worker by default to preserve in-memory WebSocket connection state
+WORKERS="${UVICORN_WORKERS:-1}"
+PORT="${PORT:-8000}"
+echo "[entrypoint] Starting Uvicorn on port ${PORT} with ${WORKERS} worker(s)..."
 
 exec uvicorn app.main:app \
     --host 0.0.0.0 \
-    --port 8000 \
+    --port "$PORT" \
     --workers "$WORKERS" \
     --proxy-headers \
     --forwarded-allow-ips="*" \

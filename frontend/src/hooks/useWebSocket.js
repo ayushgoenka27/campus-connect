@@ -43,13 +43,31 @@ export function useWebSocket({ onNewMessage, onReadReceipt, onTyping, onNotifica
       }
     }
 
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    // In production (Nginx reverse proxy), WS is on the same host/port as the page.
-    // In development, the backend WebSocket runs on port 8000.
-    const wsHost = import.meta.env.PROD
-      ? window.location.host
-      : `${window.location.hostname || "127.0.0.1"}:8000`;
-    const url = `${protocol}//${wsHost}/ws?token=${encodeURIComponent(authToken)}`;
+    // Resolve WebSocket URL:
+    // 1. Explicit VITE_WS_URL (e.g. wss://campus-connect.onrender.com/ws)
+    // 2. Derived from VITE_API_URL (e.g. https://.../api/v1 -> wss://.../ws)
+    // 3. Fallback: Nginx same-origin host in PROD, or localhost:8000 in DEV
+    let wsBaseUrl = import.meta.env.VITE_WS_URL;
+    if (!wsBaseUrl && import.meta.env.VITE_API_URL) {
+      try {
+        const apiUrl = new URL(import.meta.env.VITE_API_URL, window.location.origin);
+        const wsProto = apiUrl.protocol === "https:" ? "wss:" : "ws:";
+        wsBaseUrl = `${wsProto}//${apiUrl.host}/ws`;
+      } catch {
+        // invalid URL string, ignore and fallback
+      }
+    }
+
+    if (!wsBaseUrl) {
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const wsHost = import.meta.env.PROD
+        ? window.location.host
+        : `${window.location.hostname || "127.0.0.1"}:8000`;
+      wsBaseUrl = `${protocol}//${wsHost}/ws`;
+    }
+
+    const sep = wsBaseUrl.includes("?") ? "&" : "?";
+    const url = `${wsBaseUrl}${sep}token=${encodeURIComponent(authToken)}`;
 
     try {
       const ws = new WebSocket(url);
