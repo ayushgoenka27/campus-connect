@@ -15,7 +15,7 @@ Format:
 
 ---
 
-## [2026-11-15] — Phase 6 Notifications & Campus Resources Module Complete
+## [2026-11-15] — Phase 6 Notifications & Campus Resources Module Complete (commit 5c7ca59)
 
 ### Added
 - `backend/app/models/notification.py` — `Notification` ORM model (`user_id` FK CASCADE, `actor_id` FK SET NULL, `type`, `title`, `content`, `link`, `is_read`, `read_at`, `created_at`) with indices on `(user_id, is_read)` and `(user_id, created_at)`.

@@ -1,14 +1,14 @@
 # Campus Connect — Next Session
 
 **Last Updated:** 2026-11-15  
-**Current Phase:** Phase 6 Complete — Ready for Git Checkpoint & Phase 7 Approval  
+**Current Phase:** Phase 6 Complete (commit `5c7ca59`) — Ready for Phase 7 Approval  
 **Overall Progress:** Phase 0 (10/10), Phase 1 (14/14), Phase 2 (7/7), Phase 3 (13/13), Phase 4 (10/10), Phase 5 (15/15), Phase 6 (13/13). **Total: 82/98 tasks complete (83.7%).**
 
 ---
 
 ## 1. Current Project Phase
 
-**Phase 6 Technical Verification Complete — Awaiting Checkpoint Approval**
+**Phase 6 Complete — Checkpoint Commit `5c7ca59` — Awaiting Phase 7 Approval**
 
 Phases 0, 1, 2, 3, 4, 5, and 6 are fully implemented and technically verified with 80/80 backend pytest suites, 24/24 frontend Vitest suites, 5/5 live browser E2E scenarios in real Chrome via Playwright, clean ESLint, clean Vite production build, and backed by PostgreSQL migration revision `055c082ed165` at head.
 
@@ -32,50 +32,49 @@ All dev database records (7 users, 3 connections, 1 post, 1 like) remain intact,
 
 ---
 
-## 3. Completed Work Summary (Phase 5 — Real-Time Messaging)
+## 3. Completed Work Summary (Phase 6 — Notifications & Campus Resources)
 
-1. **Conversation & Message Models (`P5-01`, `P5-02`):**
-   - `Conversation` model with symmetric unique index `uq_conversations_user_pair` on `(LEAST(user1_id, user2_id), GREATEST(user1_id, user2_id))` to guarantee a single conversation per user pair.
-   - `Message` model with `conversation_id` FK CASCADE, `sender_id` FK, `recipient_id` FK, `content` Text, `status` enum sent/delivered/read, `is_read` bool, `read_at` datetime, `created_at`.
-   - `client_msg_id` idempotency column backed by partial unique index `uq_messages_conv_sender_client_id` on `(conversation_id, sender_id, client_msg_id) WHERE client_msg_id IS NOT NULL`.
-   - CheckConstraint `ck_messages_status_is_read_consistent` ensuring status and is_read cannot contradict each other.
-2. **Database Migration (`P5-03`):**
-   - Applied Alembic revision `d3160fc03d74` on PostgreSQL `campus_connect`.
-   - Migration round-trip verified on isolated PostgreSQL test database `campus_connect_p5_verify`.
-   - Dev DB verified intact: 7 users, 3 connections, 1 post, 1 like.
-3. **Pydantic Schemas (`P5-04`):**
-   - `schemas/message.py` with typed models for message creation, paginated responses, and conversation lists.
-4. **Conversation & Message REST APIs (`P5-05`, `P5-06`, `P5-09`, `P5-10`):**
-   - `/api/v1/conversations`: list conversations with peer profile, last message snippet, and unread counts.
-   - POST `/api/v1/conversations`: strictly enforces accepted connection check (`FR-MSG-1`), blocks self-conversation (400) and unconnected users (403).
-   - GET `/api/v1/conversations/{id}/messages`: cursor pagination using `before_id`.
-   - POST `/api/v1/conversations/{id}/messages`: REST send fallback with `client_msg_id` deduplication and WS delivery to online peers.
-   - PATCH `/api/v1/conversations/{id}/read`: marks incoming messages read and broadcasts WS read receipt.
-5. **WebSocket Gateway & ConnectionManager (`P5-07`, `P5-08`):**
-   - In-memory `ConnectionManager` at `core/websocket.py` with multi-socket set per user (offline broadcast only after final disconnect).
-   - `disconnect_user()` method closing active sockets with code 1008 upon admin deactivation (`FR-ADM-3`).
-   - Gateway endpoint at `/ws?token=<jwt>` with JWT auth, per-frame active user check, and policy 1008 close on inactive/invalid tokens.
-6. **Frontend Real-Time Messaging UI (`P5-11`, `P5-12`, `P5-13`, `P5-14`, `P5-15`):**
-   - `useWebSocket.js`: custom hook with exponential backoff reconnect and heartbeats.
-   - `Messages.jsx`: split-view conversation sidebar with unread badges, last message previews, search filter, active chat thread with message grouping, sent/read double checkmarks, online status dot, and start-chat modal.
-   - `AppLayout.jsx`: dynamic unread messages badge on the Messages sidebar navigation item.
-7. **Verification & Testing:**
-   - Backend `pytest`: 74/74 passed (100% in 13.10s).
-   - Frontend `Vitest`: 18/18 passed (100% in 6.31s).
-   - ESLint: 0 errors, 0 warnings.
-   - Vite build: clean production build in 844ms (1,898 modules).
-   - Two-account live browser E2E: 9/9 scenarios passed in real Chrome (`scratch/p5_browser_e2e.py`).
+1. **Database Schema & Models (`P6-01` to `P6-04`):**
+   - `Notification` model with indexes on `(user_id, is_read)` and `(user_id, created_at)`.
+   - `Resource` model with categories (`syllabus`, `question_paper`, `lab_manual`, `handbook`, `portal`) and URL validation.
+   - `Event` & `EventRSVP` models with unique constraint `uq_event_rsvps_event_user` preventing duplicate RSVPs.
+   - Added `users.token_version` column (integer default 1) for cross-session revocation on password change.
+   - Alembic migration revision `055c082ed165` applied to PostgreSQL `campus_connect`.
+2. **Notification Service & REST APIs (`P6-05` to `P6-08`):**
+   - `notification_service.py`: DB-first persistence before WebSocket push, duplicate prevention.
+   - `/api/v1/notifications`: Paginated list, unread count, mark-as-read, read-all, delete, user isolation.
+   - Triggers wired in connections (`connection_request`, `connection_accepted`), announcements (active user broadcast), and moderation (`moderation` outcome to reporter).
+3. **Campus Resources & Events APIs (`P6-06`, `P6-07`):**
+   - `/api/v1/resources`: Public browsing, category/keyword filtering, admin-only CRUD with URL scheme checks.
+   - `/api/v1/events`: Upcoming vs past filtering, category filtering, keyword search, attendee counts.
+   - RSVP endpoints: `POST /{id}/rsvp` with capacity limits and past-event guard, `DELETE /{id}/rsvp` for cancellation.
+4. **Password Change & Exact `token_version` Validation (`FR-SET-1`):**
+   - `POST /api/v1/auth/change-password`: Validates current password, updates Argon2 hash, increments `token_version`.
+   - Active WebSocket connections terminated with code 1008; earlier JWTs immediately rejected with HTTP 401.
+5. **Frontend UI Components (`P6-10` to `P6-13`):**
+   - `NotificationsDropdown.jsx`: Navbar bell with unread badge, real-time push via `useWebSocket`, mark all read.
+   - `Resources.jsx`: Category filter pills, keyword search, external link buttons, admin CRUD modal.
+   - `Events.jsx`: Upcoming vs past tabs, category pills, live attendee counts, RSVP button, admin CRUD modal.
+   - `Settings.jsx`: Password change form with client-side validation, `updateToken` hook, session logout.
+   - `App.jsx`: Routed `/events`, `/resources`, `/settings` replacing `ComingSoon` placeholders.
+6. **Verification & Testing:**
+   - Backend `pytest`: 80/80 passed (100% in 14.33s).
+   - Frontend `Vitest`: 24/24 passed (100% in 5.72s).
+   - Frontend ESLint: 0 errors, 0 warnings.
+   - Vite build: Clean production build in 749ms (1,901 modules).
+   - Real Chrome E2E: 5/5 scenarios passed via Playwright (`scratch/verify_phase6_final.py`).
 
 ---
 
-## 4. Next Phase: Phase 6 — Notifications & Campus Resources
+## 4. Next Phase: Phase 7 — Final Testing, Hardening & Deployment
 
-Phase 6 requires explicit user approval before implementation begins.
-Tasks `P6-01` through `P6-13`:
-- Notification model, schemas, triggers on connections and messages, and real-time dropdown panel.
-- Campus resources (library, labs, handbook, study materials) model and CRUD.
-- Campus events calendar model, scheduling, and RSVP.
-- Settings page with profile preferences.
+Phase 7 requires explicit user approval before implementation begins.
+Tasks `P7-01` through `P7-16`:
+- End-to-end integration and smoke testing across all 6 core modules.
+- Security audit (JWT revocation, CORS, rate limiting, SQL injection defense, XSS guards).
+- Performance benchmarking and query optimization (N+1 query audit, database index coverage).
+- Production deployment configuration (Docker Compose, environment templates, Nginx config).
+- User documentation and deployment guide.
 
 ---
 
@@ -95,10 +94,10 @@ npm run lint
 npm run build
 ```
 
-### Two-Account Browser E2E:
+### Targeted Phase 6 Verification & Browser E2E:
 ```powershell
 cd "c:\Users\Lenovo\Desktop\Campus Connect"
-backend\venv\Scripts\python.exe scratch\p5_browser_e2e.py
+backend\venv\Scripts\python.exe scratch\verify_phase6_final.py
 ```
 
 ### Alembic status:
