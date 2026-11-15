@@ -1,8 +1,8 @@
 # Campus Connect — Project Status
 
-**Audit Date:** 2026-11-12  
+**Audit Date:** 2026-11-15  
 **Auditor:** Principal Architect / AI Engineering Lead  
-**Current Phase:** Phase 4 Complete (Announcements & Admin) — Ready for Phase 5 Approval
+**Current Phase:** Phase 5 Complete (Real-Time Messaging) — Ready for Phase 6 Approval
 
 ---
 
@@ -118,6 +118,15 @@ Campus Connect/
 - ✅ `PATCH /api/v1/admin/reports/{id}` — Moderation actions (dismiss, hide content, remove content) with atomic transactions and audit logging
 - ✅ `moderation_logs` audit trail — Append-only record with admin ID, action, target entity snapshot, and timestamp
 
+#### Real-Time Messaging (`/api/v1/conversations`, `/ws?token=<jwt>`)
+- ✅ `GET /api/v1/conversations` — List user conversations with peer profile, last message snippet, unread count, sorted by `last_message_at`
+- ✅ `POST /api/v1/conversations` — Get or create conversation; strictly enforces accepted connection check (`FR-MSG-1`), blocks self-conversation (400) and non-connected users (403)
+- ✅ `GET /api/v1/conversations/{id}` — Conversation details with participant authorization check
+- ✅ `GET /api/v1/conversations/{id}/messages` — Paginated message history using `before_id` cursor pagination
+- ✅ `POST /api/v1/conversations/{id}/messages` — REST send fallback; persists message, handles `client_msg_id` idempotency via `uq_messages_conv_sender_client_id` partial index, broadcasts via WebSocket if recipient online
+- ✅ `PATCH /api/v1/conversations/{id}/read` — Marks incoming messages as read, sets `status='read'` and `read_at`, dispatches WS read receipt
+- ✅ WebSocket Gateway (`/ws?token=<jwt>`) — Heartbeat ping/pong, multi-tab presence tracking (offline only after last tab disconnects), real-time message delivery with `client_msg_id` deduplication, typing indicator, read receipt dispatch; closes with code 1008 immediately if unauthenticated, deactivated by admin (`disconnect_user()`), or on per-frame active check
+
 #### Database
 - ✅ `users` table — Full schema with `role` and `is_active`
 - ✅ `connections` table — sender_id FK, receiver_id FK, status, timestamps, composite unique constraint `uq_connections_sender_receiver`, bidirectional expression unique index `uq_connections_user_pair`
@@ -127,7 +136,9 @@ Campus Connect/
 - ✅ `announcements` table — author_id FK (`SET NULL` — survives admin removal), title, content, category, is_published, is_pinned, timestamps
 - ✅ `reports` table — reporter_id FK (`CASCADE`), immutable snapshots (`target_type`, `target_id`, `target_preview`, `target_author_id`), nullable `post_id`/`comment_id` FK (`SET NULL`), composite unique index `uq_reports_reporter_target`
 - ✅ `moderation_logs` table — admin_id FK (`SET NULL`), action, target_type, target_id, notes, created_at
-- ✅ 7 Alembic migrations applied up to `6a912f8eac82`
+- ✅ `conversations` table — user1_id FK (`CASCADE`), user2_id FK (`CASCADE`), last_message_at, timestamps, unique pair index `uq_conversations_user_pair` on `(LEAST(user1_id, user2_id), GREATEST(user1_id, user2_id))`
+- ✅ `messages` table — conversation_id FK (`CASCADE`), sender_id FK, recipient_id FK, content (Text), nullable `client_msg_id` (String(64)), status ('sent', 'delivered', 'read'), is_read, read_at, created_at, indexed on `(conversation_id, created_at)`, `(recipient_id, is_read)`, partial unique index `uq_messages_conv_sender_client_id` on `(conversation_id, sender_id, client_msg_id) WHERE client_msg_id IS NOT NULL`, and CheckConstraint `ck_messages_status_is_read_consistent`
+- ✅ 8 Alembic migrations applied up to `d3160fc03d74`
 - ✅ Indexes on all primary keys, foreign keys, filter flags, and composite unique pairs
 
 ### Frontend — Verified Present
@@ -135,7 +146,7 @@ Campus Connect/
 - ✅ Register page — Full validation, creates user, redirects to login
 - ✅ Authentication State — `AuthContext` provides reactive token management, current user caching, and `logout`
 - ✅ Route Protection — `ProtectedRoute` redirects unauthorized requests to `/login`, `AdminRoute` restricts admin console to `"admin"` and `"administrator"`
-- ✅ Shared AppLayout — Responsive sidebar with `overflow-y-auto`, active NavLinks, role-gated "Admin Console" section for admins, user pill, and functional logout
+- ✅ Shared AppLayout — Responsive sidebar with `overflow-y-auto`, active NavLinks, dynamic unread messages badge, role-gated "Admin Console" section for admins, user pill, and functional logout
 - ✅ Dashboard — Live metrics from `/users/me`, `/connections`, `/users`
 - ✅ Profile Page — View and edit modes with global refresh
 - ✅ Discover Page — Student search, filter dropdowns, contextual connection buttons
@@ -143,7 +154,8 @@ Campus Connect/
 - ✅ Community Page — Post composer with image preview, feed with search and like toggle, comments drawer, author edit/delete
 - ✅ Announcements Page — Dedicated `Announcements.jsx` with category tabs, search, pinned notice badges, and admin actions (Post announcement modal, publish toggle, edit, delete)
 - ✅ Admin Dashboard — Dedicated `AdminDashboard.jsx` with 5 live metric cards, User Directory with search/role filters and activation toggle, and Moderation Queue with hide/remove/dismiss actions
-- ✅ Placeholder Views — `ComingSoon` component wired to pending Phase 5–6 workspace routes
+- ✅ Messages Page — Dedicated `Messages.jsx` split-view interface with conversation list, real-time chat window, online presence indicator, sent/read double checkmarks, pagination, peer search, start-new-conversation modal, and `useWebSocket.js` hook
+- ✅ Placeholder Views — `ComingSoon` component wired to pending Phase 6 workspace routes
 
 ---
 
@@ -151,7 +163,7 @@ Campus Connect/
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Real-time messaging | Queued | WebSocket infrastructure planned for Phase 5 |
+| Notifications & Resources | Queued | Planned for Phase 6 |
 
 ---
 

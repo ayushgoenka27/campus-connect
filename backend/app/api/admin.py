@@ -17,6 +17,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_admin
+from app.core.websocket import manager
 from app.db.dependencies import get_db
 from app.models.announcement import Announcement
 from app.models.comment import Comment
@@ -141,7 +142,7 @@ def list_users(
 # PATCH /admin/users/{id}/status — activate/deactivate account (FR-ADM-3)
 # ---------------------------------------------------------------------------
 @router.patch("/users/{user_id}/status", response_model=AdminUserResponse)
-def update_user_status(
+async def update_user_status(
     user_id: int,
     payload: UserStatusUpdate,
     current_admin: User = Depends(get_current_admin),
@@ -155,7 +156,8 @@ def update_user_status(
     2. The last active administrator cannot be deactivated.
 
     Deactivated accounts immediately lose access to all protected APIs because
-    get_current_user() raises HTTP 403 when is_active is False.
+    get_current_user() raises HTTP 403 when is_active is False. Active WebSocket
+    connections are closed immediately with code 1008.
     """
     target = db.scalar(select(User).where(User.id == user_id))
     if not target:
@@ -194,6 +196,11 @@ def update_user_status(
 
     db.commit()
     db.refresh(target)
+
+    # Immediately close active WebSocket sessions if deactivated
+    if not payload.is_active:
+        await manager.disconnect_user(target.id, code=1008)
+
     return _serialize_user(target)
 
 

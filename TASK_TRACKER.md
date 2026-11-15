@@ -1,6 +1,6 @@
 # Campus Connect — Task Tracker
 
-**Last Updated:** 2026-11-12 (Phase 4 complete)
+**Last Updated:** 2026-11-15 (Phase 5 complete)
 
 Legend: ⬜ Not Started | 🔄 In Progress | 🚧 Blocked | ✅ Implemented | 🧪 Tested | ✔️ Completed
 
@@ -99,21 +99,21 @@ Legend: ⬜ Not Started | 🔄 In Progress | 🚧 Blocked | ✅ Implemented | �
 
 | ID | Task | Status | Notes |
 |----|------|--------|-------|
-| P5-01 | Create Conversation model | ⬜ Not Started | `models/conversation.py` |
-| P5-02 | Create Message model | ⬜ Not Started | `models/message.py` |
-| P5-03 | Create Alembic migration (messaging) | ⬜ Not Started | — |
-| P5-04 | Create message schemas | ⬜ Not Started | `schemas/message.py` |
-| P5-05 | Create conversation API | ⬜ Not Started | Create, list |
-| P5-06 | Create message REST API | ⬜ Not Started | History with pagination |
-| P5-07 | Create WebSocket endpoint | ⬜ Not Started | `api/websocket.py` |
-| P5-08 | Create WebSocket connection manager | ⬜ Not Started | `core/websocket.py` |
-| P5-09 | Mark messages as read | ⬜ Not Started | Read status |
-| P5-10 | Unread message count API | ⬜ Not Started | Per-conversation |
-| P5-11 | Create Messages page | ⬜ Not Started | `src/pages/Messages.jsx` |
-| P5-12 | Create conversation list component | ⬜ Not Started | With unread count |
-| P5-13 | Create chat view component | ⬜ Not Started | Real-time messages |
-| P5-14 | Create WebSocket hook | ⬜ Not Started | `src/hooks/useWebSocket.js` |
-| P5-15 | Real unread count in sidebar | ⬜ Not Started | Replace hardcoded "3" |
+| P5-01 | Create Conversation model | ✔️ Completed | `models/conversation.py` with symmetric unique index on user pair |
+| P5-02 | Create Message model | ✔️ Completed | `models/message.py` with status, read_at, conversation_id FK, indices |
+| P5-03 | Create Alembic migration (messaging) | ✔️ Completed | Revision `d3160fc03d74`, upgrade/downgrade verified on test & dev DBs |
+| P5-04 | Create message schemas | ✔️ Completed | `schemas/message.py` (MessageCreate, MessageResponse, ConversationList, etc.) |
+| P5-05 | Create conversation API | ✔️ Completed | `api/conversations.py` — list user convs, create/get conversation (accepted connections only) |
+| P5-06 | Create message REST API | ✔️ Completed | `GET /messages` with cursor pagination (`before_id`), `POST /messages` send fallback |
+| P5-07 | Create WebSocket endpoint | ✔️ Completed | `api/websocket.py` mounted at `/ws?token=<jwt>`, heartbeats, presence, policy 1008 |
+| P5-08 | Create WebSocket connection manager | ✔️ Completed | `core/websocket.py` in-memory connection manager, presence tracking, frame routing |
+| P5-09 | Mark messages as read | ✔️ Completed | `PATCH /read` REST endpoint and WS `mark_read` dispatch with WS read receipts |
+| P5-10 | Unread message count API | ✔️ Completed | Aggregated unread count per conversation returned in `GET /conversations` |
+| P5-11 | Create Messages page | ✔️ Completed | `src/pages/Messages.jsx` split view (conversation sidebar + chat pane) |
+| P5-12 | Create conversation list component | ✔️ Completed | Inline sidebar list with unread counter, last message preview, search, online dot |
+| P5-13 | Create chat view component | ✔️ Completed | Real-time chat bubbles, timestamp, single/double read checkmarks, composer |
+| P5-14 | Create WebSocket hook | ✔️ Completed | `src/hooks/useWebSocket.js` with exponential backoff reconnect & heartbeats |
+| P5-15 | Real unread count in sidebar | ✔️ Completed | Dynamic unread message badge in `AppLayout.jsx` and `Messages.jsx` |
 
 ---
 
@@ -169,8 +169,8 @@ Legend: ⬜ Not Started | 🔄 In Progress | 🚧 Blocked | ✅ Implemented | �
 | Phase 2 | 7 | 7 | 0 | 0 |
 | Phase 3 | 13 | 13 | 0 | 0 |
 | Phase 4 | 10 | 10 | 0 | 0 |
-| Phase 5 | 15 | 0 | 0 | 0 |
+| Phase 5 | 15 | 15 | 0 | 0 |
 | Phase 6 | 13 | 0 | 0 | 0 |
 | Phase 7 | 16 | 0 | 0 | 0 |
-| **Total** | **98** | **54** | **0** | **0** |
+| **Total** | **98** | **69** | **0** | **0** |
 

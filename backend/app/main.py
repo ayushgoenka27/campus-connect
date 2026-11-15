@@ -8,6 +8,8 @@ from app.api.posts import router as posts_router
 from app.api.announcements import router as announcements_router
 from app.api.reports import router as reports_router
 from app.api.admin import router as admin_router
+from app.api.conversations import router as conversations_router
+from app.api.websocket import router as websocket_router
 
 
 app = FastAPI(
@@ -65,6 +67,15 @@ app.include_router(
 app.include_router(
     admin_router,
     prefix="/api/v1",
+)
+
+app.include_router(
+    conversations_router,
+    prefix="/api/v1",
+)
+
+app.include_router(
+    websocket_router,
 )
 
 

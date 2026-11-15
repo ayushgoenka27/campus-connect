@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   Bell,
@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import client from "../api/client";
 
 /** Derives two-letter initials from a full name. */
 function getInitials(fullName) {
@@ -42,7 +43,30 @@ export default function AppLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [mobileMenu, setMobileMenu] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const isAdmin = user?.role === "admin" || user?.role === "administrator";
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    client
+      .get("/conversations")
+      .then((res) => {
+        if (!cancelled && res.data?.items) {
+          const total = res.data.items.reduce(
+            (acc, c) => acc + (c.unread_count || 0),
+            0
+          );
+          setUnreadCount(total);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   const handleLogout = () => {
     logout();
@@ -126,7 +150,12 @@ export default function AppLayout() {
                       strokeWidth={isActive ? 2.2 : 1.9}
                       className={navIconClass(isActive)}
                     />
-                    {item.label}
+                    <span className="flex-1 text-left">{item.label}</span>
+                    {item.path === "/messages" && unreadCount > 0 && (
+                      <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-indigo-600 px-1.5 text-[10px] font-bold text-white">
+                        {unreadCount > 99 ? "99+" : unreadCount}
+                      </span>
+                    )}
                   </>
                 )}
               </NavLink>

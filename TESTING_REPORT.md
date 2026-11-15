@@ -1,7 +1,7 @@
 # Campus Connect — Testing Report
 
-**Version:** 1.1  
-**Last Updated:** 2026-11-12 (Phase 4 complete)
+**Version:** 1.2  
+**Last Updated:** 2026-11-15 (Phase 5 complete)
 
 ---
 
@@ -9,16 +9,15 @@
 
 | Metric | Value |
 |--------|-------|
-| Backend API & DB tests (`pytest`) | 57 suites (8 in `test_api.py` + 12 in `test_community.py` + 37 in `test_announcements.py`, SQLite in-memory) |
-| Backend tests passing | 57 / 57 (100%) in 7.61s |
-| Frontend component tests (`Vitest + RTL`) | 13 suites (`Community` 4, `Connections` 2, `Announcements` 4, `AdminDashboard` 3, `jsdom` + mocked API) |
-| Frontend tests passing | 13 / 13 (100%) in 4.37s |
+| Backend API & DB tests (`pytest`) | 74 suites (8 in `test_api.py` + 12 in `test_community.py` + 37 in `test_announcements.py` + 17 in `test_messages.py`, SQLite in-memory) |
+| Backend tests passing | 74 / 74 (100%) in 13.10s |
+| Frontend component tests (`Vitest + RTL`) | 18 suites (`Community` 4, `Connections` 2, `Announcements` 4, `AdminDashboard` 3, `Messages` 5, `jsdom` + mocked API) |
+| Frontend tests passing | 18 / 18 (100%) in 6.31s |
 | Frontend ESLint status | Clean (0 errors, 0 warnings) |
-| Frontend production build | Clean (`npm run build` in 649ms, 1,896 modules) |
-| Isolated DB migration tests (`Alembic`) | Passed (`upgrade head` -> `downgrade` -> `upgrade head` on isolated temp PostgreSQL DB `campus_connect_p4_test2` up to `6a912f8eac82`) |
-| PostgreSQL dev database connection | Verified (`campus_connect` on localhost:5432, head `6a912f8eac82`, 6 users / 2 connections / 0 posts intact) |
-| Live Browser UI E2E (`Playwright + Chrome`) | Full Community, Connections, and Phase 4 Announcements/Admin flows passed against live PostgreSQL (`scratch/p4_browser_e2e.py`) |
-| Two-account API simulation | 8/8 lifecycle steps verified via `TestClient` / Python HTTP (separate from browser E2E) |
+| Frontend production build | Clean (`npm run build` in 844ms, 1,898 modules) |
+| Isolated DB migration tests (`Alembic`) | Passed (`upgrade head` -> `downgrade 6a912f8eac82` -> `upgrade head` on isolated temp PostgreSQL DB `campus_connect_p5_verify` up to `d3160fc03d74`) |
+| PostgreSQL dev database connection | Verified (`campus_connect` on localhost:5432, head `d3160fc03d74`, 7 users / 3 connections / 1 post / 1 like intact) |
+| Live Browser UI E2E (Phase 5 Messaging) | 9 / 9 passed in real Chrome (`scratch/p5_browser_e2e.py` against live FastAPI + PostgreSQL + Vite) |
 
 ---
 
@@ -55,8 +54,11 @@ Executed command: `pytest tests/ -v`
 | `test_user_management` (5 tests) | FR-ADM-3: List users requires admin, admin list, activate/deactivate user, self-deactivation safeguard (400), last active administrator safeguard (400) | ✅ PASSED | 1.10s |
 | `test_moderation` (7 tests) | FR-ADM-2/4: Moderation requires admin, dismiss report, already-resolved guard, hide post, remove post (preserves report record), list reports | ✅ PASSED | 1.34s |
 | `test_deactivated_account_access` (2 tests) | Security: Deactivated account immediately receives 403 on community feed and announcements endpoints | ✅ PASSED | 0.44s |
+| `TestConversationAuthorization` (5 tests) | FR-MSG-1: Self-messaging blocked (400), unconnected user blocked (403), pending connection blocked (403), accepted connection creates conversation (201), duplicate creation returns same ID | ✅ PASSED | 0.92s |
+| `TestMessagingAndHistory` (6 tests) | FR-MSG-2/4/5: Send & retrieve message history, non-participant access blocked (403), blank & 5000+ char validation (422), unread count & read receipt update (`PATCH /read`), client_msg_id REST idempotency (`uq_messages_conv_sender_client_id`), and status/is_read CheckConstraint consistency | ✅ PASSED | 1.25s |
+| `TestWebSocketGateway` (6 tests) | FR-MSG-1/3/5: Unauthenticated WS rejection (1008), authenticated WS ping/pong, real-time message echo & dispatch, client_msg_id WS deduplication, multi-socket ConnectionManager (offline broadcast only after final disconnect), and admin user deactivation immediate WS disconnect (code 1008) | ✅ PASSED | 1.42s |
 
-**Total:** 57 passed in 7.61s (100% pass rate, SQLite in-memory test DB).
+**Total:** 74 passed in 13.10s (100% pass rate, SQLite in-memory test DB).
 
 ---
 
@@ -79,7 +81,25 @@ Executed against running FastAPI (`http://127.0.0.1:8000` connected to live Post
 | 6c & 6d | Student B re-sends; Student A clicks `Decline` in `Requests`; Student B sees `Connect` restored on Discover and sends fresh request without 409 | ✅ PASSED |
 | 6e | Student A clicks `Accept` in `Requests`, verifies peer under `Connected`, and removes accepted connection | ✅ PASSED |
 
-**Browser Summary:** `15 / 15` checks passed; application console errors: `[]`; unexpected HTTP >= 400 responses: `[]` (excluding intentional broken-image URL).
+**Browser Summary (Phase 3 & 4):** `15 / 15` checks passed; application console errors: `[]`; unexpected HTTP >= 400 responses: `[]` (excluding intentional broken-image URL).
+
+### Phase 5 Real-Time Messaging Live Browser End-to-End Suite (`scratch/p5_browser_e2e.py`)
+
+Executed against running FastAPI (`http://127.0.0.1:8000` with PostgreSQL `campus_connect`) and Vite (`http://127.0.0.1:5173`) using real headless Chrome (`playwright`, `channel="chrome"`) with two active user contexts (`e2e_p5_alpha@campus.edu` and `e2e_p5_beta@campus.edu`) plus unauthorized third user (`e2e_p5_charlie@campus.edu`):
+
+| Test # | Test Scenario / Workflow Verified in Chrome | Result | Details |
+|--------|----------------------------------------------|--------|---------|
+| 1 | Student Alpha signs in via `/login` and navigates to `/messages` | ✅ PASSED | Live status indicator transitions to "Live" (green) upon WebSocket connection |
+| 2 | Student Beta signs in on separate browser context and navigates to `/messages` | ✅ PASSED | Multi-user WebSocket gateways active simultaneously |
+| 3 | Conversation creation between accepted connections via modal | ✅ PASSED | Alpha selects Beta from accepted connections modal; chat thread opens; Beta displayed as "Online" |
+| 4 | Real-time WebSocket message delivery & sent status checkmark | ✅ PASSED | Alpha sends message; appears immediately in Alpha's thread; arrives via WebSocket in Beta's thread without refresh |
+| 5 | Real-time read receipt dispatch | ✅ PASSED | Beta opening chat dispatches `mark_read`; Alpha's view updates to double-checkmark (`✓✓`) |
+| 6 | Message persistence after full page refresh | ✅ PASSED | Beta reloads `/messages`; conversation and message thread restored from PostgreSQL history |
+| 7 | Real-time unread message counter badge | ✅ PASSED | Beta navigates away to `/`; Alpha sends second message; Beta returns and observes unread badge '1' on conversation |
+| 8 | Unauthorized conversation access prevention | ✅ PASSED | Third user Charlie attempts to fetch conversation history via API; received HTTP 403 Forbidden |
+| 9 | Disconnect & reconnect presence state transitions | ✅ PASSED | Beta closes browser; Alpha observes presence transition to offline; Beta re-authenticates and reconnects; Alpha observes real-time transition back to Online |
+
+**Phase 5 Browser E2E Summary:** `9 / 9` checks passed; clean teardown of test accounts; all dev database records preserved.
 
 ---
 
@@ -99,8 +119,13 @@ Executed command: `npm test` (`vitest run` in `jsdom` with mocked `api/client` a
 | `Announcements.test.jsx` — admin actions | Admin opens composer modal, creates announcement, toggles publish status, deletes announcement | ✅ PASSED |
 | `AdminDashboard.test.jsx` — metrics & users | Renders 5 metric cards with live counts; searches user list; toggles user active/inactive status | ✅ PASSED |
 | `AdminDashboard.test.jsx` — moderation queue | Renders reported content queue; executes hide, remove, and dismiss moderation actions | ✅ PASSED |
+| `Messages.test.jsx` — conversation list & search | Renders conversation list with peer names, unread counter badges, last message preview, search filter | ✅ PASSED |
+| `Messages.test.jsx` — thread & delivery checkmarks | Opens active chat thread, displays message bubbles with sent (`✓`) and read (`✓✓`) checkmarks | ✅ PASSED |
+| `Messages.test.jsx` — message submission & optimistic UI | Sends message via composer input, displays optimistic bubble, dispatches via WebSocket | ✅ PASSED |
+| `Messages.test.jsx` — real-time incoming message frame | Incoming `new_message` frame updates active thread and moves conversation to top of sidebar | ✅ PASSED |
+| `Messages.test.jsx` — real-time read receipt frame | Incoming `read_receipt` frame updates sent messages to read status with double-checkmark | ✅ PASSED |
 
-**Total:** 13 passed in 4.37s (mocked HTTP boundary; not a live browser run).
+**Total:** 18 passed in 6.31s (100% pass rate in Vitest).
 
 ---
 

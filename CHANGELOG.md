@@ -15,6 +15,45 @@ Format:
 
 ---
 
+## [2026-11-15] — Phase 5 Real-Time Messaging Module Complete
+
+### Added
+- `backend/app/models/conversation.py` — `Conversation` ORM model (`user1_id` FK, `user2_id` FK, `last_message_at`, timestamps) with symmetric unique index `uq_conversations_user_pair` on `(LEAST(user1_id, user2_id), GREATEST(user1_id, user2_id))` to guarantee exactly one conversation per user pair.
+- `backend/app/models/message.py` — `Message` ORM model (`conversation_id` FK with CASCADE, `sender_id` FK, `recipient_id` FK, `content` Text, `status` enum: sent/delivered/read, `is_read` bool, `read_at` datetime, `created_at`, nullable `client_msg_id` String(64)) with indices on `(conversation_id, created_at)`, `(recipient_id, is_read)`, partial unique index `uq_messages_conv_sender_client_id` on `(conversation_id, sender_id, client_msg_id) WHERE client_msg_id IS NOT NULL`, and CheckConstraint `ck_messages_status_is_read_consistent`.
+- `backend/migrations/versions/d3160fc03d74_add_conversations_and_messages_tables.py` — Alembic revision adding `conversations` and `messages` tables, indices, check constraints, and safe downgrade `DROP INDEX IF EXISTS`.
+- `backend/app/schemas/message.py` — Pydantic schemas for `MessageCreate`, `MessageResponse`, `MessageList`, `ConversationCreate`, `ConversationResponse`, `ConversationList`, `MarkReadResponse`.
+- `backend/app/core/websocket.py` — In-memory `ConnectionManager` managing active WebSocket connections per `user_id` (multi-socket set per user, offline broadcast only after final disconnect), presence tracking, `disconnect_user()` for admin deactivations, frame routing, and heartbeat management.
+- `backend/app/api/conversations.py` — REST API (`/api/v1/conversations`): list conversations with unread counts and peer profile, create/get conversation (strictly enforcing accepted connection requirement per `FR-MSG-1`), cursor-paginated message history (`before_id`), REST send fallback with `client_msg_id` idempotency deduplication, and read receipt update endpoint (`PATCH /read`).
+- `backend/app/api/websocket.py` — WebSocket gateway mounted at `/ws?token=<jwt>` with JWT auth, per-frame active user verification (1008 policy close for inactive/unauthenticated), event routing (`chat_message` with `client_msg_id` deduplication, `mark_read`, `typing`, `ping`/`pong`).
+- `frontend/src/hooks/useWebSocket.js` — Custom React hook for real-time WebSocket communication with exponential backoff reconnect (1s..10s), 30s ping heartbeats, online/offline presence tracking, and typed message dispatch.
+- `frontend/src/pages/Messages.jsx` — Full-featured real-time split-view messaging interface: conversation sidebar with live unread counter badges, last message previews, search filter, online status indicators, active chat thread with message grouping, sent/read checkmarks (`✓` / `✓✓`), typing indicator, and start conversation modal with accepted connections.
+- `frontend/src/layout/AppLayout.jsx` — Dynamic real-time unread messages badge on the Messages sidebar navigation item.
+- `frontend/src/tests/Messages.test.jsx` — 5 Vitest tests covering conversation list rendering, unread badge, chat thread opening, sent/read indicators, message submission, search filtering, and incoming WebSocket frame dispatch.
+- `backend/tests/test_messages.py` — 17 automated backend test cases covering authorization gating (accepted connections only, self-messaging blocked), idempotency (REST and WebSocket `client_msg_id`), CheckConstraint status consistency, pagination, REST fallback, read receipts, WebSocket gateway auth, ping/pong, multi-socket connection lifecycle, and admin account deactivation WS disconnect.
+- `scratch/p5_browser_e2e.py` — 9-scenario Playwright E2E suite executed in real Chrome against live FastAPI + PostgreSQL + Vite.
+
+### Changed
+- `backend/app/main.py`: Mounted `conversations_router` under `/api/v1` and `ws_router`.
+- `backend/app/api/admin.py`: Changed `update_user_status` to async to call `await manager.disconnect_user(target.id, code=1008)` immediately terminating active WebSocket connections of deactivated accounts.
+- `backend/migrations/env.py`: Patched to respect programmatic `config.get_main_option("sqlalchemy.url")` overrides for test databases.
+- `backend/requirements.txt`: Added `websockets>=12.0.0` dependency for uvicorn WebSocket protocol support.
+- `frontend/src/App.jsx`: Replaced placeholder route with live `/messages` page.
+- `frontend/src/context/AuthContext.jsx`: Exposed `token` in context value for WebSocket hook initialization.
+
+### Database Changes
+- Applied `d3160fc03d74` on PostgreSQL `campus_connect` (head revision).
+- Migration round-trip verified on isolated test DB `campus_connect_p5_verify`.
+- Dev database records (7 users, 3 connections, 1 post, 1 like) preserved intact.
+
+### Tests Executed
+- Backend `pytest tests/ -v`: **74/74 passed** (100% pass rate in 13.10s).
+- Frontend `npm test` (Vitest + RTL): **18/18 passed** (100% pass rate in 6.31s).
+- Frontend `npm run lint`: **0 errors, 0 warnings**.
+- Frontend `npm run build`: **clean build in 844ms** (1,898 modules).
+- Two-account Live Browser E2E in Chrome (`scratch/p5_browser_e2e.py`): **9/9 passed** (100% pass rate).
+
+---
+
 ## [2026-11-12] — Phase 4 Announcements & Admin Module Complete
 
 ### Added

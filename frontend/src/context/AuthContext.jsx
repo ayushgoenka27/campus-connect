@@ -4,6 +4,7 @@ import api from "../api/client";
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
+  const [token, setToken] = useState(() => localStorage.getItem("campus_connect_token"));
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -58,14 +59,16 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
-  const login = useCallback(async (token) => {
-    localStorage.setItem("campus_connect_token", token);
+  const login = useCallback(async (newToken) => {
+    localStorage.setItem("campus_connect_token", newToken);
+    setToken(newToken);
     setLoading(true);
     try {
       const response = await api.get("/users/me");
       setUser(response.data);
     } catch {
       localStorage.removeItem("campus_connect_token");
+      setToken(null);
       setUser(null);
     } finally {
       setLoading(false);
@@ -74,6 +77,7 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(() => {
     localStorage.removeItem("campus_connect_token");
+    setToken(null);
     setUser(null);
   }, []);
 
@@ -82,6 +86,7 @@ export function AuthProvider({ children }) {
   }, [fetchUser]);
 
   const value = {
+    token,
     user,
     loading,
     login,

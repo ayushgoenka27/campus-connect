@@ -10,6 +10,7 @@ import Community from "./pages/Community";
 import Announcements from "./pages/Announcements";
 import AdminDashboard from "./pages/AdminDashboard";
 import Profile from "./pages/Profile";
+import Messages from "./pages/Messages";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ComingSoon from "./pages/ComingSoon";
@@ -29,15 +30,7 @@ export default function App() {
               <Route path="/" element={<Dashboard />} />
               <Route path="/discover" element={<Discover />} />
               <Route path="/connections" element={<Connections />} />
-              <Route
-                path="/messages"
-                element={
-                  <ComingSoon
-                    title="Messages"
-                    description="Real-time one-to-one messaging with your campus connections."
-                  />
-                }
-              />
+              <Route path="/messages" element={<Messages />} />
               <Route path="/community" element={<Community />} />
               <Route
                 path="/events"

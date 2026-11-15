@@ -15,6 +15,8 @@ import app.models.post
 import app.models.comment
 import app.models.like
 import app.models.connection
+import app.models.conversation
+import app.models.message
 
 
 config = context.config
@@ -47,7 +49,7 @@ def run_migrations_online() -> None:
         {},
     )
 
-    configuration["sqlalchemy.url"] = settings.database_url
+    configuration["sqlalchemy.url"] = config.get_main_option("sqlalchemy.url") or settings.database_url
 
     connectable = engine_from_config(
         configuration,
